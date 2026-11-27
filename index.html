@@ -1,0 +1,4231 @@
+=== index.html ===
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>VICE HORIZON — Open-World Crime Simulation</title>
+
+  <!-- ========================================================================
+       INTERNAL CSS — GTA-INSPIRED NEON / TROPICAL HUD, MENUS & RESPONSIVE UI
+       ======================================================================== -->
+  <style>
+    :root {
+      --neon-pink: #ff2e93;
+      --neon-cyan: #00f0ff;
+      --neon-purple: #9d4edd;
+      --sunset-gold: #ffb703;
+      --vice-green: #2ec4b6;
+      --hud-bg: rgba(11, 14, 28, 0.78);
+      --hud-border: rgba(255, 255, 255, 0.14);
+      --text-main: #f8f9fa;
+      --text-muted: #adb5bd;
+      --danger: #ff3b5c;
+      --success: #22d37a;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #090b16;
+      color: var(--text-main);
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+
+    /* Main Fullscreen Game Canvas */
+    #gameCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+      background: #101526;
+    }
+
+    /* ======================================================================
+       LOADING SCREEN
+       ====================================================================== */
+    #loadingScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 35%, #3a1252 0%, #140c2b 55%, #070913 100%);
+      transition: opacity 0.45s ease, visibility 0.45s ease;
+      padding: 24px;
+      text-align: center;
+    }
+
+    #loadingScreen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .vice-logo {
+      font-size: clamp(2.4rem, 7vw, 4.8rem);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-style: italic;
+      background: linear-gradient(135deg, var(--sunset-gold) 0%, var(--neon-pink) 52%, var(--neon-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 6px 24px rgba(255, 46, 147, 0.45));
+      margin: 0;
+    }
+
+    .vice-subtitle {
+      font-size: clamp(0.85rem, 2vw, 1.05rem);
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--neon-cyan);
+      margin-top: 8px;
+      margin-bottom: 28px;
+    }
+
+    .loading-bar-wrap {
+      width: min(360px, 84vw);
+      height: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .loading-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--neon-pink), var(--sunset-gold), var(--neon-cyan));
+      transition: width 0.2s ease;
+    }
+
+    .loading-tip {
+      margin-top: 14px;
+      font-size: 0.86rem;
+      color: var(--text-muted);
+    }
+
+    /* ======================================================================
+       HUD LAYER (GTA-STYLE 4-CORNER LAYOUT)
+       ====================================================================== */
+    #hudLayer {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      pointer-events: none;
+      display: none;
+    }
+
+    #hudLayer.active {
+      display: block;
+    }
+
+    /* TOP-LEFT HUD: Cash, Carry Cap, Health, Rep, Wanted Level, Time Cycle */
+    .hud-top-left {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: auto;
+    }
+
+    .hud-card {
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 10px;
+      padding: 8px 12px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    }
+
+    .cash-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .cash-amount {
+      font-size: clamp(1.25rem, 3vw, 1.7rem);
+      font-weight: 800;
+      color: var(--success);
+      text-shadow: 0 0 12px rgba(34, 211, 122, 0.35);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cash-cap {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stats-mini-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+      font-size: 0.74rem;
+      color: #d0d7e2;
+    }
+
+    .health-bar-bg {
+      width: 96px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      overflow: hidden;
+    }
+
+    .health-bar-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #22d37a, #00f0ff);
+      transition: width 0.2s ease, background 0.2s ease;
+    }
+
+    .rep-badge {
+      color: var(--sunset-gold);
+      font-weight: 700;
+    }
+
+    .wanted-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 12px;
+    }
+
+    .wanted-stars {
+      display: flex;
+      gap: 4px;
+      font-size: clamp(1rem, 2.4vw, 1.3rem);
+      line-height: 1;
+    }
+
+    .wanted-star {
+      color: rgba(255, 255, 255, 0.16);
+      transition: transform 0.2s ease, color 0.2s ease;
+    }
+
+    .wanted-star.active {
+      color: var(--sunset-gold);
+      text-shadow: 0 0 10px rgba(255, 183, 3, 0.85);
+      transform: scale(1.1);
+    }
+
+    .wanted-box.alert {
+      border-color: rgba(255, 59, 92, 0.7);
+      animation: policePulse 0.9s infinite alternate;
+    }
+
+    @keyframes policePulse {
+      from { box-shadow: 0 0 10px rgba(255, 59, 92, 0.55); }
+      to   { box-shadow: 0 0 14px rgba(0, 170, 255, 0.65); }
+    }
+
+    .wanted-status {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .time-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #e9ecef;
+      padding: 5px 10px;
+    }
+
+    /* TOP-RIGHT HUD: Active Mission Tracker + Progress Bar + Utility Buttons */
+    .hud-top-right {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      max-width: min(330px, 52vw);
+      pointer-events: auto;
+    }
+
+    .mission-tracker {
+      width: 100%;
+      border-left: 3px solid var(--sunset-gold);
+    }
+
+    .mission-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .mission-title {
+      font-size: clamp(0.8rem, 2vw, 0.95rem);
+      font-weight: 800;
+      color: var(--sunset-gold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mission-timer {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--neon-cyan);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mission-timer.urgent {
+      color: var(--danger);
+      animation: blinkFast 0.6s infinite;
+    }
+
+    @keyframes blinkFast {
+      50% { opacity: 0.4; }
+    }
+
+    .mission-desc {
+      font-size: 0.76rem;
+      color: #dee2e6;
+      margin: 4px 0 7px 0;
+      line-height: 1.3;
+    }
+
+    .mission-progress-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .mission-progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--neon-pink), var(--sunset-gold), var(--neon-cyan));
+      transition: width 0.25s ease;
+    }
+
+    .hud-top-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .hud-icon-btn {
+      background: var(--hud-bg);
+      color: var(--text-main);
+      border: 1px solid var(--hud-border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: border-color 0.2s, transform 0.1s;
+    }
+
+    .hud-icon-btn:hover {
+      border-color: var(--neon-cyan);
+    }
+
+    .hud-icon-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* BOTTOM-RIGHT HUD: Mini-map Radar */
+    .hud-bottom-right {
+      position: absolute;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      right: max(12px, env(safe-area-inset-right));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      pointer-events: auto;
+    }
+
+    .minimap-frame {
+      position: relative;
+      width: clamp(136px, 23vw, 194px);
+      height: clamp(136px, 23vw, 194px);
+      border-radius: 14px;
+      overflow: hidden;
+      border: 2px solid rgba(0, 240, 255, 0.45);
+      background: rgba(8, 12, 24, 0.9);
+      box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6);
+    }
+
+    #minimapCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .minimap-legend {
+      font-size: 0.66rem;
+      background: rgba(10, 12, 24, 0.76);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--hud-border);
+      color: var(--text-muted);
+    }
+
+    /* BOTTOM-LEFT HUD: Control Hints + Mobile Virtual Joystick */
+    .hud-bottom-left {
+      position: absolute;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      left: max(12px, env(safe-area-inset-left));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .control-hints {
+      font-size: 0.75rem;
+      line-height: 1.45;
+      color: #dbe2ef;
+      max-width: 260px;
+    }
+
+    .key-cap {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: var(--neon-cyan);
+      font-weight: 800;
+      font-size: 0.7rem;
+      margin: 0 2px;
+    }
+
+    /* Virtual Joystick (Auto-shown on touchscreens or mobile viewports) */
+    #mobileControls {
+      display: none;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #mobileControls.visible {
+      display: flex;
+    }
+
+    #joystickZone {
+      position: relative;
+      width: 118px;
+      height: 118px;
+      border-radius: 50%;
+      background: rgba(15, 20, 40, 0.62);
+      border: 2px solid rgba(0, 240, 255, 0.45);
+      touch-action: none;
+      box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.12);
+    }
+
+    #joystickKnob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 48px;
+      height: 48px;
+      margin-left: -24px;
+      margin-top: -24px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffffff, var(--neon-cyan) 65%, #0077b6);
+      box-shadow: 0 4px 14px rgba(0, 240, 255, 0.55);
+      pointer-events: none;
+    }
+
+    /* Mobile Interact Button positioned above minimap for right-thumb access */
+    #mobileInteractBtn {
+      display: none;
+      position: fixed;
+      right: max(16px, env(safe-area-inset-right));
+      bottom: calc(clamp(136px, 23vw, 194px) + max(42px, env(safe-area-inset-bottom)));
+      z-index: 220;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: 2px solid var(--sunset-gold);
+      background: linear-gradient(135deg, rgba(255, 46, 147, 0.9), rgba(255, 183, 3, 0.9));
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      box-shadow: 0 6px 20px rgba(255, 46, 147, 0.5);
+      cursor: pointer;
+    }
+
+    #mobileInteractBtn.visible {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Interactive Context Prompt Banner (Center-Bottom) */
+    #interactPrompt {
+      position: fixed;
+      left: 50%;
+      bottom: max(22px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      z-index: 210;
+      background: rgba(12, 16, 32, 0.9);
+      border: 1px solid var(--neon-cyan);
+      color: #fff;
+      padding: 9px 18px;
+      border-radius: 999px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      box-shadow: 0 0 22px rgba(0, 240, 255, 0.35);
+      display: none;
+      pointer-events: auto;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #interactPrompt.visible {
+      display: block;
+    }
+
+    /* Floating Toast Notification Banner */
+    #toastBanner {
+      position: fixed;
+      top: max(76px, calc(env(safe-area-inset-top) + 64px));
+      left: 50%;
+      transform: translateX(-50%) translateY(-12px);
+      z-index: 300;
+      background: rgba(14, 16, 34, 0.92);
+      border: 1px solid var(--neon-pink);
+      color: #fff;
+      padding: 9px 20px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      box-shadow: 0 6px 22px rgba(255, 46, 147, 0.35);
+      text-align: center;
+      max-width: 90vw;
+    }
+
+    #toastBanner.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ======================================================================
+       MENUS & MODAL POPUPS (Start, Pause, Shop, Missions, Mission End, Busted)
+       ====================================================================== */
+    .overlay-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(6, 8, 18, 0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .overlay-backdrop.open {
+      display: flex;
+    }
+
+    .modal-panel {
+      width: min(680px, 95vw);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: linear-gradient(165deg, rgba(22, 19, 44, 0.96), rgba(10, 13, 28, 0.98));
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      border-radius: 18px;
+      padding: clamp(18px, 3vw, 28px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 32px rgba(255, 46, 147, 0.18);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: clamp(1.2rem, 3vw, 1.65rem);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: linear-gradient(90deg, var(--sunset-gold), var(--neon-pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .close-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 13px 20px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--neon-pink), var(--sunset-gold));
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(255, 46, 147, 0.4);
+      transition: transform 0.12s ease, filter 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.08);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--neon-cyan);
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0, 240, 255, 0.2);
+    }
+
+    .btn-danger {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 59, 92, 0.45);
+      background: rgba(255, 59, 92, 0.12);
+      color: #ff7b92;
+      font-size: 0.88rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    /* Start Menu Avatar Customizer Grid */
+    .start-grid {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 600px) {
+      .start-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .avatar-preview-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, rgba(255, 46, 147, 0.22), rgba(0, 0, 0, 0.4));
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    #avatarPreviewCanvas {
+      width: 116px;
+      height: 116px;
+    }
+
+    .customizer-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .custom-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    .swatch-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .swatch-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .swatch-btn.selected {
+      border-color: #fff;
+      transform: scale(1.16);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+    }
+
+    .pill-select {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Shop & Mission List Items */
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .list-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .list-card-info h4 {
+      margin: 0 0 4px 0;
+      font-size: 0.96rem;
+      color: #fff;
+    }
+
+    .list-card-info p {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    .tag-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 999px;
+      margin-right: 6px;
+      background: rgba(0, 240, 255, 0.18);
+      color: var(--neon-cyan);
+    }
+
+    .tag-badge.story {
+      background: rgba(255, 183, 3, 0.2);
+      color: var(--sunset-gold);
+    }
+
+    .tag-badge.done {
+      background: rgba(34, 211, 122, 0.2);
+      color: var(--success);
+    }
+
+    .buy-btn {
+      flex-shrink: 0;
+      padding: 9px 14px;
+      border-radius: 9px;
+      border: none;
+      background: linear-gradient(135deg, var(--vice-green), #00b4d8);
+      color: #06121e;
+      font-weight: 900;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+
+    .buy-btn:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      background: #495057;
+      color: #dee2e6;
+    }
+
+    .stack-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .save-summary {
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ========================================================================
+       FULLSCREEN HTML5 GAME CANVAS
+       ======================================================================== -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- ========================================================================
+       LOADING SCREEN
+       ======================================================================== -->
+  <div id="loadingScreen">
+    <h1 class="vice-logo">VICE HORIZON</h1>
+    <div class="vice-subtitle">Sun-Baked Neon Open-World Simulation</div>
+    <div class="loading-bar-wrap">
+      <div class="loading-bar-fill" id="loadingBarFill"></div>
+    </div>
+    <div class="loading-tip" id="loadingTip">Generating Vice Horizon City districts &amp; coastal skyline...</div>
+  </div>
+
+  <!-- ========================================================================
+       IN-GAME GTA-STYLE HUD LAYER
+       ======================================================================== -->
+  <div id="hudLayer">
+    <!-- Top-Left: Cash, Health/Rep, Wanted Stars, Day/Night Phase -->
+    <div class="hud-top-left">
+      <div class="hud-card">
+        <div class="cash-row">
+          <span class="cash-amount" id="hudCash">$500</span>
+          <span class="cash-cap" id="hudCashCap">/ $2,000 CAP</span>
+        </div>
+        <div class="stats-mini-row">
+          <div class="health-bar-bg" title="Player Health">
+            <div class="health-bar-fill" id="hudHealthBar"></div>
+          </div>
+          <span class="rep-badge" id="hudRep">0 REP</span>
+        </div>
+      </div>
+
+      <div class="hud-card wanted-box" id="wantedBox">
+        <div class="wanted-stars" id="hudWantedStars">
+          <span class="wanted-star">★</span>
+          <span class="wanted-star">★</span>
+          <span class="wanted-star">★</span>
+          <span class="wanted-star">★</span>
+          <span class="wanted-star">★</span>
+        </div>
+        <span class="wanted-status" id="hudWantedStatus">CLEAR</span>
+      </div>
+
+      <div class="hud-card time-pill" id="hudTimePill">
+        <span id="hudTimeIcon">☀️</span>
+        <span id="hudTimeLabel">DAYLIGHT • 12:00</span>
+      </div>
+    </div>
+
+    <!-- Top-Right: Active Mission Name + Progress Bar + Pause/Mute Buttons -->
+    <div class="hud-top-right">
+      <div class="hud-top-actions">
+        <button class="hud-icon-btn" id="btnToggleTouch" title="Toggle Virtual Joystick">🕹️ Touch</button>
+        <button class="hud-icon-btn" id="btnMuteAudio" title="Toggle Synth Audio">🔊 SFX</button>
+        <button class="hud-icon-btn" id="btnOpenPause" title="Pause Menu (ESC)">⏸ Menu</button>
+      </div>
+      <div class="hud-card mission-tracker">
+        <div class="mission-header-row">
+          <span class="mission-title" id="hudMissionName">FREE ROAM</span>
+          <span class="mission-timer" id="hudMissionTimer"></span>
+        </div>
+        <div class="mission-desc" id="hudMissionDesc">Visit golden Mission Hubs (M) or Neon Shops ($, +, G).</div>
+        <div class="mission-progress-bg">
+          <div class="mission-progress-fill" id="hudMissionBar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom-Left: Control Hints & Virtual Touch Joystick -->
+    <div class="hud-bottom-left">
+      <div id="mobileControls">
+        <div id="joystickZone">
+          <div id="joystickKnob"></div>
+        </div>
+      </div>
+      <div class="hud-card control-hints" id="controlHints">
+        <div><span class="key-cap">WASD</span> / Arrows to Move</div>
+        <div><span class="key-cap">SPACE</span> Interact (Shops / Missions)</div>
+        <div><span class="key-cap">ESC</span> Pause &amp; Save</div>
+      </div>
+    </div>
+
+    <!-- Bottom-Right: Mini-map Radar -->
+    <div class="hud-bottom-right">
+      <div class="minimap-frame">
+        <canvas id="minimapCanvas" width="200" height="200"></canvas>
+      </div>
+      <div class="minimap-legend">● You &nbsp; ★ Mission &nbsp; $ Shop &nbsp; ⚠ Zone</div>
+    </div>
+  </div>
+
+  <!-- Mobile Interact Button & Center Context Prompt -->
+  <button id="mobileInteractBtn">⚡ INTERACT</button>
+  <div id="interactPrompt">Press SPACE to Interact</div>
+  <div id="toastBanner"></div>
+
+  <!-- ========================================================================
+       START MENU OVERLAY (WITH LIVE AVATAR CUSTOMIZER)
+       ======================================================================== -->
+  <div class="overlay-backdrop" id="startMenu">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">VICE HORIZON</h2>
+          <div style="font-size:0.78rem;color:#adb5bd;">Welcome to Vice Horizon City — Customize your runner</div>
+        </div>
+      </div>
+
+      <div class="save-summary" id="startSaveSummary">
+        <span>💾 Saved Career Found: <strong id="saveSumCash">$500</strong></span>
+        <span>Missions: <strong id="saveSumMissions">0</strong></span>
+        <span>Wanted: <strong id="saveSumWanted">0★</strong></span>
+      </div>
+
+      <div class="start-grid">
+        <div class="avatar-preview-box">
+          <canvas id="avatarPreviewCanvas" width="120" height="120"></canvas>
+          <span style="font-size:0.72rem;color:#adb5bd;margin-top:6px;">LIVE AVATAR PREVIEW</span>
+        </div>
+
+        <div class="customizer-controls">
+          <div class="custom-row">
+            <span>Jacket Color</span>
+            <div class="swatch-group" id="outfitSwatches"></div>
+          </div>
+          <div class="custom-row">
+            <span>Skin Tone</span>
+            <div class="swatch-group" id="skinSwatches"></div>
+          </div>
+          <div class="custom-row">
+            <span>Hair Color</span>
+            <div class="swatch-group" id="hairSwatches"></div>
+          </div>
+          <div class="custom-row">
+            <span>Hair Style</span>
+            <button class="pill-select" id="btnCycleHairStyle">Slick Back ↻</button>
+          </div>
+          <div class="custom-row">
+            <span>Accessory</span>
+            <button class="pill-select" id="btnCycleAccessory">Aviators ↻</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack-btns">
+        <button class="btn-primary" id="btnStartPlay">Enter Vice Horizon</button>
+        <button class="btn-danger" id="btnNewCareer">Reset Career Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       PAUSE MENU OVERLAY
+       ======================================================================== -->
+  <div class="overlay-backdrop" id="pauseMenu">
+    <div class="modal-panel" style="max-width:460px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Game Paused</h2>
+        <button class="close-btn" id="btnPauseResumeX">Resume</button>
+      </div>
+      <div class="save-summary" id="pauseStatsBox"></div>
+      <div class="stack-btns">
+        <button class="btn-primary" id="btnPauseResume">Resume City Roam</button>
+        <button class="btn-secondary" id="btnManualSave">Save Progress Now</button>
+        <button class="btn-secondary" id="btnBackToTitle">Customize Avatar / Title Menu</button>
+        <button class="btn-danger" id="btnPauseResetSave">Wipe Saved Career</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MISSION HUB POPUP
+       ======================================================================== -->
+  <div class="overlay-backdrop" id="missionModal">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="missionModalTitle">Mission Hub</h2>
+          <div style="font-size:0.78rem;color:#adb5bd;" id="missionModalSubtitle">Select a contract to start</div>
+        </div>
+        <button class="close-btn" id="btnCloseMissionModal">Close (ESC)</button>
+      </div>
+      <div class="item-list" id="missionListContainer"></div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       SHOP & UPGRADE POPUP
+       ======================================================================== -->
+  <div class="overlay-backdrop" id="shopModal">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="shopModalTitle">Vice Shop</h2>
+          <div style="font-size:0.78rem;color:#adb5bd;" id="shopModalStats">Cash: $0 | Speed Lv.1</div>
+        </div>
+        <button class="close-btn" id="btnCloseShopModal">Close (ESC)</button>
+      </div>
+      <div class="item-list" id="shopListContainer"></div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MISSION RESULT / GAME OVER POPUP
+       ======================================================================== -->
+  <div class="overlay-backdrop" id="resultModal">
+    <div class="modal-panel" style="max-width:460px;text-align:center;">
+      <h2 class="modal-title" id="resultTitle" style="font-size:1.9rem;">MISSION PASSED!</h2>
+      <p id="resultBody" style="color:#dee2e6;font-size:0.95rem;line-height:1.5;margin:14px 0 20px;"></p>
+      <button class="btn-primary" id="btnResultContinue">Continue</button>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       GAME LOGIC JAVASCRIPT (100% BUILT-IN CANVAS + WEB AUDIO + LOCALSTORAGE)
+       ======================================================================== -->
+  <script>
+    'use strict';
+
+    /**
+     * ========================================================================
+     * 1. CONSTANTS, CONFIGURATION & PERSISTENCE KEYS
+     * ========================================================================
+     */
+    const SAVE_STORAGE_KEY = 'vice_horizon_save_v1';
+
+    // Full Vice Horizon City dimensions
+    const WORLD_WIDTH = 3600;
+    const WORLD_HEIGHT = 2700;
+    const BEACH_START_X = 2960;
+    const OCEAN_START_X = 3300;
+    const PLAYER_MAX_X = 3312; // Surf edge limit
+
+    // Complete realistic day-night cycle every 90 seconds
+    const DAY_NIGHT_CYCLE_SECONDS = 90;
+
+    // Road grid centers used by Traffic AI, Rendering, and Sidewalks
+    const H_ROADS = [
+      { id: 0, name: 'North Loop Blvd', y: 280, halfWidth: 70, isHighway: false },
+      { id: 1, name: 'Vice Expressway', y: 950, halfWidth: 80, isHighway: true },
+      { id: 2, name: 'Neon Central Ave', y: 1620, halfWidth: 70, isHighway: false },
+      { id: 3, name: 'Marina Causeway', y: 2290, halfWidth: 70, isHighway: false }
+    ];
+
+    const V_ROADS = [
+      { id: 0, name: 'Villa Parkway', x: 320, halfWidth: 70 },
+      { id: 1, name: 'Downtown Ave', x: 1040, halfWidth: 70 },
+      { id: 2, name: 'Neon Strip', x: 1800, halfWidth: 70 },
+      { id: 3, name: 'Ocean Drive', x: 2620, halfWidth: 70 }
+    ];
+
+    // Avatar Customization Options
+    const OUTFIT_COLORS = ['#ff2e93', '#00f0ff', '#ffb703', '#8338ec', '#2ec4b6', '#f8f9fa'];
+    const SKIN_TONES = ['#f6d0b1', '#e0ac69', '#c68642', '#8d5524', '#5c3818'];
+    const HAIR_COLORS = ['#1d1e22', '#5c3c24', '#d9a441', '#ff2e93', '#00f0ff', '#ced4da'];
+    const HAIR_STYLES = ['Slick Back', 'Afro', 'Waves', 'Mohawk'];
+    const ACCESSORIES = ['Aviators', 'Neon Visor', 'Gold Chain', 'None'];
+
+    /**
+     * ========================================================================
+     * 2. PROCEDURAL WEB AUDIO ENGINE (FREE, BUILT-IN BROWSER AUDIO)
+     * ========================================================================
+     */
+    const SoundFX = {
+      ctx: null,
+      muted: false,
+
+      /** Lazily initialize AudioContext after a user interaction */
+      ensureContext() {
+        if (this.muted) return null;
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        return this.ctx;
+      },
+
+      /** Play a single retro synth tone */
+      tone(freq, duration = 0.12, type = 'triangle', gainVal = 0.08, delay = 0) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        const now = ctx.currentTime + delay;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(gainVal, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+      },
+
+      playPickup() {
+        this.tone(587.33, 0.09, 'sine', 0.09, 0);
+        this.tone(880, 0.14, 'triangle', 0.09, 0.07);
+      },
+
+      playCash() {
+        this.tone(784, 0.08, 'triangle', 0.09, 0);
+        this.tone(1046.5, 0.16, 'triangle', 0.09, 0.07);
+      },
+
+      playMissionStart() {
+        this.tone(330, 0.11, 'sawtooth', 0.06, 0);
+        this.tone(440, 0.11, 'sawtooth', 0.06, 0.09);
+        this.tone(659.25, 0.22, 'triangle', 0.08, 0.18);
+      },
+
+      playMissionPass() {
+        this.tone(523.25, 0.12, 'triangle', 0.09, 0);
+        this.tone(659.25, 0.12, 'triangle', 0.09, 0.11);
+        this.tone(783.99, 0.12, 'triangle', 0.09, 0.22);
+        this.tone(1046.5, 0.34, 'triangle', 0.1, 0.33);
+      },
+
+      playFail() {
+        this.tone(260, 0.18, 'sawtooth', 0.08, 0);
+        this.tone(185, 0.3, 'sawtooth', 0.08, 0.16);
+      },
+
+      playSirenChirp() {
+        this.tone(720, 0.1, 'square', 0.045, 0);
+        this.tone(940, 0.12, 'square', 0.045, 0.11);
+      },
+
+      playBump() {
+        this.tone(110, 0.09, 'sine', 0.07, 0);
+      }
+    };
+
+    /**
+     * ========================================================================
+     * 3. GAME STATE & SAVE / LOAD SYSTEM (LOCALSTORAGE)
+     * ========================================================================
+     */
+    function createDefaultSaveState() {
+      return {
+        cash: 500,
+        cashLimit: 2000,
+        reputation: 0,
+        wantedLevel: 0,
+        speedTier: 0,
+        walletTier: 0,
+        completedStoryIds: [],
+        missionsCompletedCount: 0,
+        worldTime: 18, // Start in bright late-morning tropical daylight
+        playerPos: { x: 1712, y: 1850 },
+        avatar: {
+          outfitColor: OUTFIT_COLORS[0],
+          skinTone: SKIN_TONES[1],
+          hairColor: HAIR_COLORS[0],
+          hairStyleIdx: 0,
+          accessoryIdx: 0
+        }
+      };
+    }
+
+    const GameState = {
+      running: false,
+      paused: false,
+      modalOpen: false,
+      timeElapsed: 0,
+      save: createDefaultSaveState(),
+      player: {
+        x: 1712,
+        y: 1850,
+        radius: 15,
+        angle: -Math.PI / 2,
+        baseSpeed: 215,
+        health: 100,
+        maxHealth: 100,
+        walkCycle: 0,
+        isMoving: false,
+        hitCooldown: 0,
+        trafficPenaltyCooldown: 0
+      },
+      camera: { x: 1712, y: 1850 },
+      wantedDecayTimer: 14,
+      inRestrictedZone: false,
+      activeMission: null,
+      escortNpc: null,
+      pedestrians: [],
+      vehicles: [],
+      particles: [],
+      nearbyInteractable: null
+    };
+
+    /** Load saved progress from localStorage cleanly with structural guards */
+    function loadProgress() {
+      try {
+        const raw = localStorage.getItem(SAVE_STORAGE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        const def = createDefaultSaveState();
+        GameState.save = {
+          ...def,
+          ...parsed,
+          avatar: { ...def.avatar, ...(parsed.avatar || {}) },
+          playerPos: parsed.playerPos || def.playerPos,
+          completedStoryIds: Array.isArray(parsed.completedStoryIds) ? parsed.completedStoryIds : []
+        };
+        GameState.save.wantedLevel = Math.max(0, Math.min(5, Number(GameState.save.wantedLevel) || 0));
+        GameState.save.cash = Math.max(0, Math.min(GameState.save.cashLimit, Number(GameState.save.cash) || 0));
+        GameState.player.x = GameState.save.playerPos.x;
+        GameState.player.y = GameState.save.playerPos.y;
+        return true;
+      } catch (err) {
+        console.warn('Could not load saved game data, using defaults:', err);
+        GameState.save = createDefaultSaveState();
+        return false;
+      }
+    }
+
+    /** Persist current cash, completed missions, upgrades, wanted level & avatar */
+    function saveProgress(showToastMsg = false) {
+      try {
+        GameState.save.playerPos = {
+          x: Math.round(GameState.player.x),
+          y: Math.round(GameState.player.y)
+        };
+        localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(GameState.save));
+        if (showToastMsg) showToast('💾 Progress saved to local browser storage!');
+      } catch (err) {
+        console.warn('Save failed:', err);
+      }
+    }
+
+    /** Reset all progress back to a fresh career */
+    function resetSavedCareer() {
+      localStorage.removeItem(SAVE_STORAGE_KEY);
+      GameState.save = createDefaultSaveState();
+      GameState.player.x = GameState.save.playerPos.x;
+      GameState.player.y = GameState.save.playerPos.y;
+      GameState.player.health = 100;
+      GameState.activeMission = null;
+      GameState.escortNpc = null;
+      GameState.wantedDecayTimer = 14;
+      saveProgress();
+      updateStartMenuSummary();
+      updateHUD();
+      showToast('🆕 Career reset! Fresh start in Vice Horizon City.');
+    }
+
+    /** Compute current player movement speed factoring in shop upgrades */
+    function getPlayerSpeed() {
+      return GameState.player.baseSpeed + GameState.save.speedTier * 36;
+    }
+
+    /**
+     * ========================================================================
+     * 4. WORLD GEOMETRY — DISTRICTS, BUILDINGS, OVERPASS, SHOPS, HUBS & ZONES
+     * ========================================================================
+     */
+    const WorldData = {
+      buildings: [],
+      solidWalls: [],
+      parkedVehicles: [],
+      palmTrees: [],
+      sidewalkLoops: [],
+      streetLamps: [],
+      shops: [],
+      missionHubs: [],
+      restrictedZones: [],
+      overpassDeck: null
+    };
+
+    /** Build the entire city map deterministically */
+    function buildViceHorizonWorld() {
+      WorldData.buildings = [];
+      WorldData.solidWalls = [];
+      WorldData.parkedVehicles = [];
+      WorldData.palmTrees = [];
+      WorldData.sidewalkLoops = [];
+      WorldData.streetLamps = [];
+      WorldData.shops = [];
+      WorldData.missionHubs = [];
+      WorldData.restrictedZones = [];
+
+      const addBldg = (opts) => {
+        const b = {
+          x: opts.x,
+          y: opts.y,
+          w: opts.w,
+          h: opts.h,
+          height: opts.height || 38,
+          wallColor: opts.wallColor || '#f2d7d9',
+          roofColor: opts.roofColor || '#e8b4bc',
+          roofStyle: opts.roofStyle || 'flat',
+          label: opts.label || '',
+          neonColor: opts.neonColor || null,
+          district: opts.district || 'Downtown'
+        };
+        WorldData.buildings.push(b);
+        WorldData.solidWalls.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+      };
+
+      // --- 1. SUBURBAN RESIDENTIAL NEIGHBORHOOD (Column 1 North + West Edge) ---
+      const villas = [
+        { x: 465, y: 415, w: 170, h: 120, wallColor: '#ffe5d9', roofColor: '#d96b43', roofStyle: 'terracotta', height: 24, label: 'Villa Rosa' },
+        { x: 700, y: 415, w: 175, h: 120, wallColor: '#e2ece9', roofColor: '#c95c3c', roofStyle: 'terracotta', height: 24 },
+        { x: 465, y: 635, w: 185, h: 135, wallColor: '#fff1d0', roofColor: '#d47448', roofStyle: 'terracotta', height: 26 },
+        { x: 715, y: 635, w: 165, h: 135, wallColor: '#d8f3dc', roofColor: '#bd5a38', roofStyle: 'terracotta', height: 25, label: 'Palm Estate' },
+        { x: 65, y: 420, w: 125, h: 145, wallColor: '#fde2e4', roofColor: '#c8553d', roofStyle: 'terracotta', height: 24 },
+        { x: 65, y: 640, w: 125, h: 150, wallColor: '#e0fbfc', roofColor: '#cd6142', roofStyle: 'terracotta', height: 24 },
+        { x: 65, y: 1120, w: 125, h: 170, wallColor: '#cddafd', roofColor: '#98a9d6', roofStyle: 'flat', height: 34 },
+        { x: 65, y: 1360, w: 125, h: 140, wallColor: '#f8edeb', roofColor: '#d8a7b1', roofStyle: 'flat', height: 32 },
+        { x: 65, y: 1770, w: 125, h: 175, wallColor: '#d9ed92', roofColor: '#b5c99a', roofStyle: 'terracotta', height: 26 },
+        { x: 65, y: 2010, w: 125, h: 155, wallColor: '#f5cac3', roofColor: '#c97b63', roofStyle: 'terracotta', height: 25 }
+      ];
+      villas.forEach((v) => addBldg({ ...v, district: 'Suburbs' }));
+
+      // --- 2. DOWNTOWN SKYSCRAPER ZONE & PARKING GARAGE (Column 1 Mid & South) ---
+      addBldg({
+        x: 455, y: 1095, w: 205, h: 185, height: 82,
+        wallColor: '#486581', roofColor: '#243b53', roofStyle: 'helipad',
+        label: 'HORIZON TOWER', neonColor: '#00f0ff', district: 'Downtown'
+      });
+      addBldg({
+        x: 705, y: 1095, w: 190, h: 165, height: 70,
+        wallColor: '#5c6b73', roofColor: '#334155', roofStyle: 'ac',
+        label: 'APEX FINANCIAL', neonColor: '#ffb703', district: 'Downtown'
+      });
+      // Multi-Level Parking Garage (central deck floor + solid pillars around bays)
+      addBldg({
+        x: 455, y: 1345, w: 440, h: 145, height: 42,
+        wallColor: '#6c757d', roofColor: '#495057', roofStyle: 'parking',
+        label: 'PARKING GARAGE', neonColor: '#00f0ff', district: 'Downtown'
+      });
+
+      // VCPD Precinct & Downtown South
+      addBldg({
+        x: 455, y: 1750, w: 230, h: 165, height: 50,
+        wallColor: '#2b4570', roofColor: '#1d2d44', roofStyle: 'helipad',
+        label: 'VCPD PRECINCT', neonColor: '#3a86ff', district: 'Downtown'
+      });
+      addBldg({
+        x: 725, y: 1750, w: 170, h: 165, height: 56,
+        wallColor: '#4a4e69', roofColor: '#22223b', roofStyle: 'ac',
+        label: 'METRO COURTS', district: 'Downtown'
+      });
+
+      // --- 3. COMMERCIAL STRIP & SHOPS (Column 2 North & Mid) ---
+      // 24/7 Vice Mart Convenience Store
+      addBldg({
+        x: 1175, y: 415, w: 185, h: 135, height: 32,
+        wallColor: '#f8f9fa', roofColor: '#2ec4b6', roofStyle: 'ac',
+        label: '24/7 VICE MART', neonColor: '#2ec4b6', district: 'Commercial'
+      });
+      // Neon Customs Upgrade Garage
+      addBldg({
+        x: 1465, y: 415, w: 205, h: 145, height: 36,
+        wallColor: '#343a40', roofColor: '#212529', roofStyle: 'ac',
+        label: 'NEON CUSTOMS', neonColor: '#ff2e93', district: 'Commercial'
+      });
+      addBldg({
+        x: 1175, y: 630, w: 195, h: 155, height: 44,
+        wallColor: '#ffe5ec', roofColor: '#fb6f92', roofStyle: 'flat',
+        label: 'SUNSET ARCADE', neonColor: '#ffb703', district: 'Commercial'
+      });
+      addBldg({
+        x: 1465, y: 630, w: 205, h: 155, height: 46,
+        wallColor: '#e0fbfc', roofColor: '#3d5a80', roofStyle: 'ac',
+        label: 'PALM MALL', neonColor: '#00f0ff', district: 'Commercial'
+      });
+
+      // Financial Mid & Gold Coast Pawn Shop (split by central alley for Highway Overpass Underpass!)
+      addBldg({
+        x: 1175, y: 1095, w: 170, h: 170, height: 64,
+        wallColor: '#3d405b', roofColor: '#2b2d42', roofStyle: 'helipad',
+        label: 'VAULT PLAZA', neonColor: '#ffb703', district: 'Downtown'
+      });
+      // Gold Coast Pawn Shop
+      addBldg({
+        x: 1175, y: 1320, w: 170, h: 155, height: 34,
+        wallColor: '#fff3b0', roofColor: '#e09f3e', roofStyle: 'flat',
+        label: 'GOLD COAST PAWN', neonColor: '#ffb703', district: 'Commercial'
+      });
+      addBldg({
+        x: 1515, y: 1095, w: 165, h: 195, height: 74,
+        wallColor: '#546a7b', roofColor: '#393d3f', roofStyle: 'ac',
+        label: 'SKYLINE SUITES', neonColor: '#9d4edd', district: 'Downtown'
+      });
+      addBldg({
+        x: 1515, y: 1335, w: 165, h: 140, height: 42,
+        wallColor: '#f4acb7', roofColor: '#9d8189', roofStyle: 'flat',
+        label: 'CAFÉ SOL', neonColor: '#ff2e93', district: 'Downtown'
+      });
+
+      // Horizon Docks & Marina Hub (Column 2 South)
+      addBldg({
+        x: 1175, y: 1755, w: 225, h: 170, height: 38,
+        wallColor: '#6d6875', roofColor: '#4a4e69', roofStyle: 'ac',
+        label: 'CARGO DEPOT', district: 'Docks'
+      });
+      addBldg({
+        x: 1475, y: 1755, w: 205, h: 150, height: 34,
+        wallColor: '#caf0f8', roofColor: '#0077b6', roofStyle: 'flat',
+        label: "RICO'S MARINA", neonColor: '#00f0ff', district: 'Docks'
+      });
+      addBldg({
+        x: 1175, y: 1985, w: 210, h: 165, height: 32,
+        wallColor: '#e5e5e5', roofColor: '#6c757d', roofStyle: 'ac',
+        label: 'DOCK WAREHOUSE', district: 'Docks'
+      });
+
+      // --- 4. NEON NIGHTLIFE & ART-DECO HOTELS (Column 3) ---
+      addBldg({
+        x: 1935, y: 415, w: 245, h: 160, height: 52,
+        wallColor: '#ffd6ff', roofColor: '#c77dff', roofStyle: 'helipad',
+        label: 'PENTHOUSE CLUB', neonColor: '#ff2e93', district: 'Neon Strip'
+      });
+      addBldg({
+        x: 2235, y: 415, w: 245, h: 160, height: 48,
+        wallColor: '#cbf3f0', roofColor: '#2ec4b6', roofStyle: 'pool',
+        label: 'HOTEL CORAL', neonColor: '#00f0ff', district: 'Neon Strip'
+      });
+      addBldg({
+        x: 1935, y: 635, w: 235, h: 155, height: 42,
+        wallColor: '#ffe5d9', roofColor: '#ff99c8', roofStyle: 'flat',
+        label: 'STARLIGHT MOTEL', neonColor: '#ffb703', district: 'Neon Strip'
+      });
+      addBldg({
+        x: 2235, y: 635, w: 245, h: 155, height: 46,
+        wallColor: '#d0f4de', roofColor: '#48bfe3', roofStyle: 'pool',
+        label: 'MIAMI SUITES', neonColor: '#00f0ff', district: 'Neon Strip'
+      });
+
+      // Neon Strip Nightlife Center
+      addBldg({
+        x: 1935, y: 1095, w: 240, h: 185, height: 44,
+        wallColor: '#2b193d', roofColor: '#1a1026', roofStyle: 'flat',
+        label: 'CLUB MALIBLUE', neonColor: '#ff2e93', district: 'Neon Strip'
+      });
+      addBldg({
+        x: 2245, y: 1095, w: 235, h: 185, height: 46,
+        wallColor: '#1b263b', roofColor: '#0d1b2a', roofStyle: 'flat',
+        label: 'VICE WAVE LOUNGE', neonColor: '#00f0ff', district: 'Neon Strip'
+      });
+      addBldg({
+        x: 1935, y: 1335, w: 240, h: 145, height: 38,
+        wallColor: '#3c096c', roofColor: '#240046', roofStyle: 'flat',
+        label: 'ELECTRIC CASINO', neonColor: '#ffb703', district: 'Neon Strip'
+      });
+      addBldg({
+        x: 2245, y: 1335, w: 235, h: 145, height: 40,
+        wallColor: '#f7d1cd', roofColor: '#e8c2ca', roofStyle: 'flat',
+        label: 'ART DECO PLAZA', neonColor: '#9d4edd', district: 'Neon Strip'
+      });
+
+      // South Beach & Courier Depot (Column 3 South)
+      addBldg({
+        x: 1935, y: 1755, w: 235, h: 165, height: 36,
+        wallColor: '#fcf6bd', roofColor: '#ff9f1c', roofStyle: 'flat',
+        label: 'ACE COURIER HUB', neonColor: '#ffb703', district: 'South Beach'
+      });
+      addBldg({
+        x: 2240, y: 1755, w: 240, h: 165, height: 44,
+        wallColor: '#d8e2dc', roofColor: '#9d8189', roofStyle: 'pool',
+        label: 'OCEAN RESIDENCE', neonColor: '#00f0ff', district: 'South Beach'
+      });
+      addBldg({
+        x: 1935, y: 1985, w: 545, h: 155, height: 40,
+        wallColor: '#fae1dd', roofColor: '#f28482', roofStyle: 'pool',
+        label: 'BOARDWALK RESORT', neonColor: '#ff2e93', district: 'South Beach'
+      });
+
+      // --- 5. BEACHFRONT PROMENADE KIOSKS & LIFEGUARD TOWERS ---
+      addBldg({
+        x: 2745, y: 500, w: 95, h: 110, height: 24,
+        wallColor: '#ffcad4', roofColor: '#ff4d6d', roofStyle: 'terracotta',
+        label: 'TIKI BAR', neonColor: '#ffb703', district: 'Ocean Beach'
+      });
+      addBldg({
+        x: 2745, y: 1200, w: 95, h: 115, height: 24,
+        wallColor: '#caf0f8', roofColor: '#00b4d8', roofStyle: 'terracotta',
+        label: 'SURF SHACK', neonColor: '#00f0ff', district: 'Ocean Beach'
+      });
+      addBldg({
+        x: 2745, y: 1920, w: 95, h: 115, height: 24,
+        wallColor: '#fff1d0', roofColor: '#ff9f1c', roofStyle: 'terracotta',
+        label: 'BEACH CAFE', neonColor: '#ff2e93', district: 'Ocean Beach'
+      });
+      // Lifeguard Towers on Sand
+      [620, 1460, 2120].forEach((ly) => {
+        addBldg({
+          x: 3060, y: ly, w: 48, h: 48, height: 28,
+          wallColor: '#ffffff', roofColor: '#ef233c', roofStyle: 'terracotta',
+          district: 'Ocean Beach'
+        });
+      });
+
+      // --- 6. HIGHWAY OVERPASS BRIDGE ON VICE EXPRESSWAY (y = 870..1030, x = 1320..1500) ---
+      // Support piers leave a wide walkable underpass archway (x = 1365..1455)
+      WorldData.overpassDeck = { x: 1295, y: 866, w: 230, h: 168 };
+      WorldData.solidWalls.push({ x: 1300, y: 868, w: 46, h: 36 });
+      WorldData.solidWalls.push({ x: 1474, y: 868, w: 46, h: 36 });
+      WorldData.solidWalls.push({ x: 1300, y: 996, w: 46, h: 36 });
+      WorldData.solidWalls.push({ x: 1474, y: 996, w: 46, h: 36 });
+
+      // --- 7. PARKED VEHICLES (SOLID COLLIDERS AROUND PARKING GARAGE, SHOPS, VILLAS) ---
+      const parkedSpecs = [
+        // Parking Garage bays
+        { x: 485, y: 1515, angle: Math.PI / 2, color: '#ff2e93', type: 'coupe' },
+        { x: 545, y: 1515, angle: Math.PI / 2, color: '#00f0ff', type: 'coupe' },
+        { x: 605, y: 1515, angle: Math.PI / 2, color: '#ffb703', type: 'taxi' },
+        { x: 675, y: 1515, angle: Math.PI / 2, color: '#8338ec', type: 'pickup' },
+        // Commercial & Shop parking
+        { x: 1385, y: 455, angle: 0, color: '#2ec4b6', type: 'coupe' },
+        { x: 1385, y: 515, angle: 0, color: '#f4a261', type: 'pickup' },
+        { x: 1405, y: 1965, angle: Math.PI / 2, color: '#457b9d', type: 'pickup' },
+        { x: 1475, y: 1965, angle: Math.PI / 2, color: '#e63946', type: 'coupe' },
+        // Villa Driveways
+        { x: 660, y: 455, angle: 0, color: '#e9c46a', type: 'coupe' },
+        { x: 670, y: 675, angle: 0, color: '#00b4d8', type: 'coupe' },
+        // Neon Strip VIP Parking
+        { x: 2195, y: 1135, angle: Math.PI / 2, color: '#ff2e93', type: 'coupe' },
+        { x: 2195, y: 1215, angle: Math.PI / 2, color: '#f8f9fa', type: 'coupe' },
+        // Beachfront Parking
+        { x: 2765, y: 785, angle: 0, color: '#ffb703', type: 'pickup' },
+        { x: 2765, y: 1500, angle: 0, color: '#00f0ff', type: 'coupe' }
+      ];
+
+      parkedSpecs.forEach((pv) => {
+        const isVert = Math.abs(Math.sin(pv.angle)) > 0.7;
+        const w = isVert ? 34 : 62;
+        const h = isVert ? 62 : 34;
+        WorldData.parkedVehicles.push({
+          ...pv,
+          w,
+          h,
+          cx: pv.x + w / 2,
+          cy: pv.y + h / 2
+        });
+        WorldData.solidWalls.push({ x: pv.x, y: pv.y, w, h });
+      });
+
+      // --- 8. PALM TREES ALONG PROMENADE, MEDIANS & VILLAS ---
+      for (let py = 240; py <= 2460; py += 165) {
+        WorldData.palmTrees.push({ x: 2918, y: py, swayOffset: py * 0.01, scale: 1.05 });
+        WorldData.palmTrees.push({ x: 2715, y: py + 60, swayOffset: py * 0.015, scale: 0.92 });
+      }
+      [445, 705, 1165, 1705, 1925, 2505].forEach((px) => {
+        [405, 815, 1085, 1500, 1745, 2170].forEach((py) => {
+          WorldData.palmTrees.push({ x: px, y: py, swayOffset: (px + py) * 0.01, scale: 0.9 });
+        });
+      });
+
+      // --- 9. STREETLAMPS ALONG AVENUES & BOARDWALK ---
+      V_ROADS.forEach((vr) => {
+        for (let ly = 220; ly <= 2380; ly += 240) {
+          WorldData.streetLamps.push({ x: vr.x - vr.halfWidth - 10, y: ly });
+          WorldData.streetLamps.push({ x: vr.x + vr.halfWidth + 10, y: ly });
+        }
+      });
+      for (let ly = 240; ly <= 2420; ly += 220) {
+        WorldData.streetLamps.push({ x: 2875, y: ly, neon: '#ff2e93' });
+      }
+
+      // --- 10. SIDEWALK LOOPS FOR AI PEDESTRIANS ---
+      const blockBounds = [
+        { x1: 405, y1: 365, x2: 955, y2: 855 },
+        { x1: 405, y1: 1045, x2: 955, y2: 1535 },
+        { x1: 405, y1: 1705, x2: 955, y2: 2205 },
+        { x1: 1125, y1: 365, x2: 1715, y2: 855 },
+        { x1: 1125, y1: 1045, x2: 1715, y2: 1535 },
+        { x1: 1125, y1: 1705, x2: 1715, y2: 2205 },
+        { x1: 1885, y1: 365, x2: 2535, y2: 855 },
+        { x1: 1885, y1: 1045, x2: 2535, y2: 1535 },
+        { x1: 1885, y1: 1705, x2: 2535, y2: 2205 },
+        // Beachfront Promenade Loop
+        { x1: 2860, y1: 240, x2: 2945, y2: 2440 }
+      ];
+      blockBounds.forEach((b) => {
+        WorldData.sidewalkLoops.push([
+          { x: b.x1, y: b.y1 },
+          { x: b.x2, y: b.y1 },
+          { x: b.x2, y: b.y2 },
+          { x: b.x1, y: b.y2 }
+        ]);
+      });
+
+      // --- 11. INTERACTIVE SHOPS (PAWN SHOP, CONVENIENCE STORE, UPGRADE GARAGE) ---
+      WorldData.shops = [
+        {
+          id: 'convenience_store',
+          name: '24/7 Vice Mart',
+          shortLabel: '+',
+          color: '#2ec4b6',
+          x: 1265,
+          y: 575,
+          radius: 42,
+          description: 'Snacks, energy boosters, sneakers & clean paperwork.'
+        },
+        {
+          id: 'upgrade_garage',
+          name: 'Neon Customs Garage',
+          shortLabel: 'G',
+          color: '#ff2e93',
+          x: 1565,
+          y: 585,
+          radius: 44,
+          description: 'High-tech speed gear & armored cash briefcases.'
+        },
+        {
+          id: 'pawn_shop',
+          name: 'Gold Coast Pawn Shop',
+          shortLabel: '$',
+          color: '#ffb703',
+          x: 1260,
+          y: 1495,
+          radius: 42,
+          description: 'Expand cash carry capacity & bribe informants to clear heat.'
+        }
+      ];
+
+      // --- 12. INTERACTIVE MISSION HUBS ---
+      WorldData.missionHubs = [
+        {
+          id: 'hub_marina',
+          name: "Rico's Marina Hub",
+          x: 1580,
+          y: 1930,
+          radius: 42,
+          color: '#ffb703',
+          missions: ['story_1', 'story_4', 'rep_delivery']
+        },
+        {
+          id: 'hub_neon',
+          name: "Elena's Neon Strip Hub",
+          x: 2055,
+          y: 1300,
+          radius: 42,
+          color: '#ff2e93',
+          missions: ['story_2', 'story_3', 'rep_escort']
+        },
+        {
+          id: 'hub_beach',
+          name: "Viper's Beach Boardwalk Hub",
+          x: 2885,
+          y: 1260,
+          radius: 42,
+          color: '#00f0ff',
+          missions: ['rep_pickup', 'rep_delivery', 'rep_escort']
+        }
+      ];
+
+      // --- 13. MARKED RESTRICTED SECURITY ZONES (TRIGGER WANTED LEVEL) ---
+      WorldData.restrictedZones = [
+        {
+          id: 'zone_precinct',
+          name: 'VCPD Restricted Yard',
+          x: 445,
+          y: 1935,
+          w: 255,
+          h: 190
+        },
+        {
+          id: 'zone_vault',
+          name: 'Downtown Vault Perimeter',
+          x: 1355,
+          y: 1120,
+          w: 145,
+          h: 185
+        },
+        {
+          id: 'zone_docks',
+          name: 'Restricted Cargo Compound',
+          x: 1410,
+          y: 2005,
+          w: 270,
+          h: 155
+        }
+      ];
+    }
+
+    /**
+     * ========================================================================
+     * 5. SHOP UPGRADES & MISSION CATALOG DEFINITIONS
+     * ========================================================================
+     */
+    const SHOP_ITEMS = {
+      convenience_store: [
+        {
+          id: 'med_snack',
+          name: 'Vice Energy Meal',
+          desc: 'Restores player health to 100% immediately.',
+          cost: 80,
+          type: 'heal'
+        },
+        {
+          id: 'speed_1',
+          name: 'Miami Street Sneakers (Speed Lv.1)',
+          desc: 'Permanently increases movement speed (+36 px/s).',
+          cost: 350,
+          type: 'speed',
+          reqTier: 0,
+          targetTier: 1
+        },
+        {
+          id: 'wallet_1',
+          name: 'Hidden Pocket Belt (Carry Cap $4,500)',
+          desc: 'Increases maximum cash carry limit from $2,000 to $4,500.',
+          cost: 450,
+          type: 'wallet',
+          reqTier: 0,
+          targetTier: 1,
+          newLimit: 4500
+        }
+      ],
+      pawn_shop: [
+        {
+          id: 'bribe_cops',
+          name: 'Pay Off Informants (-2 Wanted Stars)',
+          desc: 'Reduces your current Wanted Level by 2 stars immediately.',
+          cost: 300,
+          type: 'reduce_wanted'
+        },
+        {
+          id: 'wallet_2',
+          name: 'Armored Briefcase (Carry Cap $10,000)',
+          desc: 'Upgrades maximum cash carry capacity to $10,000.',
+          cost: 1100,
+          type: 'wallet',
+          reqTier: 1,
+          targetTier: 2,
+          newLimit: 10000
+        },
+        {
+          id: 'speed_2',
+          name: 'Adrenaline Trainers (Speed Lv.2)',
+          desc: 'Permanently boosts sprint pace even faster (+72 total).',
+          cost: 900,
+          type: 'speed',
+          reqTier: 1,
+          targetTier: 2
+        }
+      ],
+      upgrade_garage: [
+        {
+          id: 'speed_3',
+          name: 'Carbon Exo-Boots (Speed Lv.3)',
+          desc: 'High-performance street agility (+108 total speed).',
+          cost: 1600,
+          type: 'speed',
+          reqTier: 2,
+          targetTier: 3
+        },
+        {
+          id: 'speed_4',
+          name: 'Vice Turbo Rig (Speed Lv.4 MAX)',
+          desc: 'Maximum runner velocity across Vice Horizon City.',
+          cost: 2800,
+          type: 'speed',
+          reqTier: 3,
+          targetTier: 4
+        },
+        {
+          id: 'wallet_3',
+          name: 'Titanium Vault Satchel (Carry Cap $25,000)',
+          desc: 'Massive carry limit for high-stakes heist payouts.',
+          cost: 2400,
+          type: 'wallet',
+          reqTier: 2,
+          targetTier: 3,
+          newLimit: 25000
+        },
+        {
+          id: 'clear_wanted',
+          name: 'Clean ID & Disguise (0 Wanted Stars)',
+          desc: 'Instantly wipes all Wanted Stars.',
+          cost: 650,
+          type: 'clear_wanted'
+        }
+      ]
+    };
+
+    const MISSION_TEMPLATES = {
+      story_1: {
+        id: 'story_1',
+        title: 'Neon Express',
+        category: 'Story • Delivery',
+        isStory: true,
+        type: 'delivery',
+        timeLimit: 65,
+        rewardCash: 500,
+        rewardRep: 60,
+        desc: 'Deliver the encrypted drive from Marina Hub to Club Maliblue before the timer expires.',
+        target: { x: 2055, y: 1300, label: 'Club Maliblue Drop-off' }
+      },
+      story_2: {
+        id: 'story_2',
+        title: 'Sun-Baked Salvage',
+        category: 'Story • Retrieval',
+        isStory: true,
+        type: 'pickup',
+        timeLimit: 90,
+        rewardCash: 800,
+        rewardRep: 90,
+        desc: 'Retrieve all 3 supply cases across the Beachfront & Parking Garage, then deliver to Ocean Drive.',
+        items: [
+          { x: 2895, y: 630, label: 'Boardwalk North Case' },
+          { x: 2990, y: 1470, label: 'Ocean Surf Case' },
+          { x: 675, y: 1555, label: 'Parking Garage Case' }
+        ],
+        finalDrop: { x: 2510, y: 1850, label: 'South Beach Stash' }
+      },
+      story_3: {
+        id: 'story_3',
+        title: 'VIP Escort: Sunset Strip',
+        category: 'Story • Escort NPC',
+        isStory: true,
+        type: 'escort',
+        timeLimit: 95,
+        rewardCash: 1150,
+        rewardRep: 130,
+        vipName: 'Elena (Informant)',
+        desc: 'Escort Elena safely on foot from Neon Strip to the Suburban Villa Safe House.',
+        target: { x: 760, y: 585, label: 'Suburban Safe House' }
+      },
+      story_4: {
+        id: 'story_4',
+        title: 'Crown Jewel Heist',
+        category: 'Story • High-Risk Pickup',
+        isStory: true,
+        type: 'pickup',
+        timeLimit: 105,
+        rewardCash: 1900,
+        rewardRep: 220,
+        triggersHeat: 2,
+        desc: 'Grab the 2 vault ledgers inside Downtown Vault Plaza & Cargo Dock, then escape back to Marina Hub!',
+        items: [
+          { x: 1425, y: 1210, label: 'Vault Ledger #1' },
+          { x: 1545, y: 2080, label: 'Cargo Ledger #2' }
+        ],
+        finalDrop: { x: 1580, y: 1930, label: "Rico's Marina Extraction" }
+      },
+      rep_delivery: {
+        id: 'rep_delivery',
+        title: 'Vice Courier Run',
+        category: 'Repeatable • Delivery',
+        isStory: false,
+        type: 'delivery',
+        timeLimit: 60,
+        rewardCash: 380,
+        rewardRep: 40,
+        desc: 'Rush a priority courier parcel across the city before the drop window closes.',
+        randomTargets: [
+          { x: 2745, y: 1980, label: 'Beach Cafe Drop' },
+          { x: 675, y: 590, label: 'Suburban Villa Drop' },
+          { x: 1565, y: 585, label: 'Neon Customs Bay' },
+          { x: 2360, y: 600, label: 'Hotel Coral Lobby' }
+        ]
+      },
+      rep_pickup: {
+        id: 'rep_pickup',
+        title: 'Lost Contraband Sweep',
+        category: 'Repeatable • Retrieval',
+        isStory: false,
+        type: 'pickup',
+        timeLimit: 80,
+        rewardCash: 480,
+        rewardRep: 55,
+        desc: 'Collect 3 scattered beach & alley stashes and return them to Viper’s Boardwalk Hub.',
+        items: [
+          { x: 3020, y: 740, label: 'Tiki Surf Crate' },
+          { x: 2515, y: 1265, label: 'Neon Alley Crate' },
+          { x: 2890, y: 2040, label: 'South Pier Crate' }
+        ],
+        finalDrop: { x: 2885, y: 1260, label: "Viper's Boardwalk Hub" }
+      },
+      rep_escort: {
+        id: 'rep_escort',
+        title: 'VIP Bodyguard Detail',
+        category: 'Repeatable • Escort NPC',
+        isStory: false,
+        type: 'escort',
+        timeLimit: 85,
+        rewardCash: 620,
+        rewardRep: 70,
+        vipName: 'Marco (High Roller)',
+        desc: 'Escort Marco safely across busy avenues to the beachfront resort.',
+        randomTargets: [
+          { x: 2745, y: 560, label: 'Tiki Bar Pier' },
+          { x: 1260, y: 1495, label: 'Gold Coast Pawn' },
+          { x: 2240, y: 1955, label: 'Boardwalk Resort' }
+        ]
+      }
+    };
+
+    /**
+     * ========================================================================
+     * 6. COLLISION PHYSICS & GEOMETRY HELPERS
+     * ========================================================================
+     */
+    /** Resolve circle vs Axis-Aligned Bounding Box overlap cleanly */
+    function resolveCircleAABB(entity, box) {
+      const closestX = Math.max(box.x, Math.min(entity.x, box.x + box.w));
+      const closestY = Math.max(box.y, Math.min(entity.y, box.y + box.h));
+      const dx = entity.x - closestX;
+      const dy = entity.y - closestY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < entity.radius * entity.radius) {
+        const dist = Math.sqrt(distSq);
+        if (dist > 0.0001) {
+          const overlap = entity.radius - dist;
+          entity.x += (dx / dist) * overlap;
+          entity.y += (dy / dist) * overlap;
+        } else {
+          // Center inside box fallback: push out along shallowest axis
+          const leftPen = Math.abs(entity.x - box.x);
+          const rightPen = Math.abs(box.x + box.w - entity.x);
+          const topPen = Math.abs(entity.y - box.y);
+          const botPen = Math.abs(box.y + box.h - entity.y);
+          const minPen = Math.min(leftPen, rightPen, topPen, botPen);
+          if (minPen === leftPen) entity.x = box.x - entity.radius;
+          else if (minPen === rightPen) entity.x = box.x + box.w + entity.radius;
+          else if (minPen === topPen) entity.y = box.y - entity.radius;
+          else entity.y = box.y + box.h + entity.radius;
+        }
+        return true;
+      }
+      return false;
+    }
+
+    /** Resolve world boundary + all building/wall/parked-vehicle collisions */
+    function resolveWorldCollisions(entity) {
+      entity.x = Math.max(24, Math.min(PLAYER_MAX_X, entity.x));
+      entity.y = Math.max(24, Math.min(WORLD_HEIGHT - 24, entity.y));
+
+      // Two passes handle corner intersections seamlessly
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 0; i < WorldData.solidWalls.length; i++) {
+          resolveCircleAABB(entity, WorldData.solidWalls[i]);
+        }
+      }
+    }
+
+    /** Distance helper */
+    function distBetween(x1, y1, x2, y2) {
+      return Math.hypot(x2 - x1, y2 - y1);
+    }
+
+    /** Check whether a point falls inside any marked restricted zone */
+    function checkInsideRestrictedZone(x, y) {
+      for (const z of WorldData.restrictedZones) {
+        if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) {
+          return z;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * ========================================================================
+     * 7. AI PEDESTRIAN & TRAFFIC SYSTEM (WITH DESPAWN & RESPAWN POOLING)
+     * ========================================================================
+     */
+    const MAX_PEDESTRIANS = 28;
+    const MAX_VEHICLES = 20;
+    const ACTIVE_DESPAWN_RADIUS = 1250;
+
+    const PED_COLORS = ['#ff2e93', '#00f0ff', '#ffb703', '#ffffff', '#8338ec', '#2ec4b6', '#f77f00', '#e63946'];
+    const CAR_COLORS = ['#ff2e93', '#00b4d8', '#f8f9fa', '#8338ec', '#e63946', '#2ec4b6', '#fb8500', '#6c757d'];
+
+    /** Spawn a sidewalk pedestrian near the player's outer ring or initial world */
+    function spawnPedestrian(nearPlayer = true) {
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const loop = WorldData.sidewalkLoops[Math.floor(Math.random() * WorldData.sidewalkLoops.length)];
+        const segIdx = Math.floor(Math.random() * loop.length);
+        const a = loop[segIdx];
+        const b = loop[(segIdx + 1) % loop.length];
+        const t = Math.random();
+        const lateral = (Math.random() - 0.5) * 14;
+        const x = a.x + (b.x - a.x) * t + lateral;
+        const y = a.y + (b.y - a.y) * t + lateral;
+
+        const d = distBetween(x, y, GameState.player.x, GameState.player.y);
+        if (nearPlayer && (d < 420 || d > 1100)) continue;
+
+        return {
+          x,
+          y,
+          radius: 13,
+          loop,
+          waypointIdx: (segIdx + 1) % loop.length,
+          dir: Math.random() < 0.5 ? 1 : -1,
+          speed: 48 + Math.random() * 28,
+          shirtColor: PED_COLORS[Math.floor(Math.random() * PED_COLORS.length)],
+          skinTone: SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)],
+          hairColor: HAIR_COLORS[Math.floor(Math.random() * 3)],
+          walkPhase: Math.random() * Math.PI * 2,
+          angle: 0,
+          bumpCooldown: 0
+        };
+      }
+      return null;
+    }
+
+    /** Spawn a moving traffic vehicle (Car, Taxi, Pickup Truck, or Police Cruiser) */
+    function spawnVehicle(nearPlayer = true, forcePolice = false) {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const isH = Math.random() < 0.5;
+        let x, y, roadType, roadIdx, dir;
+
+        if (isH) {
+          roadType = 'H';
+          roadIdx = Math.floor(Math.random() * H_ROADS.length);
+          dir = Math.random() < 0.5 ? 1 : -1;
+          y = H_ROADS[roadIdx].y + (dir === 1 ? 34 : -34);
+          x = 120 + Math.random() * (2760 - 120);
+        } else {
+          roadType = 'V';
+          roadIdx = Math.floor(Math.random() * V_ROADS.length);
+          dir = Math.random() < 0.5 ? 1 : -1;
+          x = V_ROADS[roadIdx].x + (dir === 1 ? -34 : 34);
+          y = 140 + Math.random() * (WORLD_HEIGHT - 280);
+        }
+
+        const dPlayer = distBetween(x, y, GameState.player.x, GameState.player.y);
+        if (nearPlayer && (dPlayer < 480 || dPlayer > 1180)) continue;
+
+        // Avoid spawning inside another vehicle
+        let overlap = false;
+        for (const v of GameState.vehicles) {
+          if (distBetween(x, y, v.x, v.y) < 125) {
+            overlap = true;
+            break;
+          }
+        }
+        if (overlap) continue;
+
+        const isPolice = forcePolice || (GameState.save.wantedLevel > 0 && Math.random() < 0.12 * GameState.save.wantedLevel);
+        const roll = Math.random();
+        let kind = 'car';
+        let color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+        let length = 64;
+        let width = 34;
+        let baseSpeed = 145 + Math.random() * 45;
+
+        if (isPolice) {
+          kind = 'police';
+          color = '#1d2d44';
+          baseSpeed = 185 + GameState.save.wantedLevel * 12;
+        } else if (roll < 0.25) {
+          kind = 'taxi';
+          color = '#ffb703';
+          baseSpeed = 155 + Math.random() * 35;
+        } else if (roll < 0.48) {
+          kind = 'pickup';
+          length = 72;
+          width = 36;
+          baseSpeed = 135 + Math.random() * 30;
+        }
+
+        if (roadType === 'H' && H_ROADS[roadIdx].isHighway) {
+          baseSpeed += 40;
+        }
+
+        return {
+          x,
+          y,
+          roadType,
+          roadIdx,
+          dir,
+          kind,
+          color,
+          length,
+          width,
+          baseSpeed,
+          currentSpeed: baseSpeed,
+          angle: roadType === 'H' ? (dir === 1 ? 0 : Math.PI) : (dir === 1 ? Math.PI / 2 : -Math.PI / 2),
+          turnCooldown: 0,
+          honkCooldown: 0
+        };
+      }
+      return null;
+    }
+
+    /** Populate initial pedestrians & vehicles right when game starts */
+    function initializeTrafficAndNPCs() {
+      GameState.pedestrians = [];
+      GameState.vehicles = [];
+      for (let i = 0; i < MAX_PEDESTRIANS; i++) {
+        const p = spawnPedestrian(false);
+        if (p) GameState.pedestrians.push(p);
+      }
+      for (let i = 0; i < MAX_VEHICLES; i++) {
+        const v = spawnVehicle(false);
+        if (v) GameState.vehicles.push(v);
+      }
+    }
+
+    /** Update AI Pedestrians: sidewalk walking + despawn/respawn + bump checks */
+    function updatePedestrians(dt) {
+      for (let i = GameState.pedestrians.length - 1; i >= 0; i--) {
+        const p = GameState.pedestrians[i];
+        const distP = distBetween(p.x, p.y, GameState.player.x, GameState.player.y);
+
+        // Despawn pedestrians far outside active zone to prevent lag
+        if (distP > ACTIVE_DESPAWN_RADIUS) {
+          GameState.pedestrians.splice(i, 1);
+          continue;
+        }
+
+        if (p.bumpCooldown > 0) p.bumpCooldown -= dt;
+
+        const target = p.loop[p.waypointIdx];
+        const dx = target.x - p.x;
+        const dy = target.y - p.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 14) {
+          p.waypointIdx = (p.waypointIdx + p.dir + p.loop.length) % p.loop.length;
+        } else {
+          p.angle = Math.atan2(dy, dx);
+          p.x += (dx / dist) * p.speed * dt;
+          p.y += (dy / dist) * p.speed * dt;
+          p.walkPhase += dt * 8;
+        }
+
+        // Gentle player-pedestrian bump separation
+        if (distP < p.radius + GameState.player.radius) {
+          const nx = (p.x - GameState.player.x) / (distP || 1);
+          const ny = (p.y - GameState.player.y) / (distP || 1);
+          p.x += nx * 45 * dt;
+          p.y += ny * 45 * dt;
+        }
+      }
+
+      // Respawn back up to target density
+      while (GameState.pedestrians.length < MAX_PEDESTRIANS) {
+        const np = spawnPedestrian(true);
+        if (np) GameState.pedestrians.push(np);
+        else break;
+      }
+    }
+
+    /** Update Traffic Vehicles: lane driving, intersection turns, braking & collision */
+    function updateTraffic(dt) {
+      const wanted = GameState.save.wantedLevel;
+      let policeCount = 0;
+
+      for (let i = GameState.vehicles.length - 1; i >= 0; i--) {
+        const v = GameState.vehicles[i];
+        if (v.kind === 'police') policeCount++;
+        if (v.turnCooldown > 0) v.turnCooldown -= dt;
+        if (v.honkCooldown > 0) v.honkCooldown -= dt;
+
+        const dPlayer = distBetween(v.x, v.y, GameState.player.x, GameState.player.y);
+        // Despawn vehicles far outside view or road edge
+        if (dPlayer > ACTIVE_DESPAWN_RADIUS + 150 || v.x < -120 || v.x > 2920 || v.y < -120 || v.y > WORLD_HEIGHT + 120) {
+          GameState.vehicles.splice(i, 1);
+          continue;
+        }
+
+        const vxDir = v.roadType === 'H' ? v.dir : 0;
+        const vyDir = v.roadType === 'V' ? v.dir : 0;
+
+        // Check distance to vehicle ahead in the same lane and player in front
+        let targetSpeed = v.baseSpeed;
+        for (let j = 0; j < GameState.vehicles.length; j++) {
+          if (i === j) continue;
+          const other = GameState.vehicles[j];
+          const dx = other.x - v.x;
+          const dy = other.y - v.y;
+          const fwd = dx * vxDir + dy * vyDir;
+          const lat = Math.abs(dx * -vyDir + dy * vxDir);
+          if (fwd > 0 && fwd < 115 && lat < 32) {
+            targetSpeed = Math.min(targetSpeed, fwd < 75 ? 0 : other.currentSpeed * 0.85);
+          }
+        }
+
+        // Brake slightly for pedestrians/player in crosswalk path unless high-wanted chasing cop
+        const pdx = GameState.player.x - v.x;
+        const pdy = GameState.player.y - v.y;
+        const pFwd = pdx * vxDir + pdy * vyDir;
+        const pLat = Math.abs(pdx * -vyDir + pdy * vxDir);
+        if (pFwd > 0 && pFwd < 95 && pLat < 26) {
+          if (!(v.kind === 'police' && wanted >= 3)) {
+            targetSpeed = 0;
+            if (v.honkCooldown <= 0) {
+              v.honkCooldown = 2.5;
+              SoundFX.tone(360, 0.08, 'sawtooth', 0.03, 0);
+            }
+          }
+        }
+
+        v.currentSpeed += (targetSpeed - v.currentSpeed) * Math.min(1, dt * 6);
+        const prevX = v.x;
+        const prevY = v.y;
+        v.x += vxDir * v.currentSpeed * dt;
+        v.y += vyDir * v.currentSpeed * dt;
+
+        // Intersection turning logic (snap cleanly onto perpendicular lane)
+        if (v.turnCooldown <= 0) {
+          if (v.roadType === 'H') {
+            for (let vi = 0; vi < V_ROADS.length; vi++) {
+              const rx = V_ROADS[vi].x;
+              // Choose turn at intersection (police bias toward player if wanted >= 2!)
+              const turnChance = v.kind === 'police' && wanted >= 2 ? 0.65 : 0.32;
+              const laneSouthX = rx - 34;
+              const laneNorthX = rx + 34;
+
+              const crossedSouth = (v.dir === 1 && prevX < laneSouthX && v.x >= laneSouthX) || (v.dir === -1 && prevX > laneSouthX && v.x <= laneSouthX);
+              const crossedNorth = (v.dir === 1 && prevX < laneNorthX && v.x >= laneNorthX) || (v.dir === -1 && prevX > laneNorthX && v.x <= laneNorthX);
+
+              if (crossedSouth && Math.random() < turnChance) {
+                if (!(v.kind === 'police' && wanted >= 2 && GameState.player.y < v.y)) {
+                  v.x = laneSouthX;
+                  v.roadType = 'V';
+                  v.roadIdx = vi;
+                  v.dir = 1;
+                  v.angle = Math.PI / 2;
+                  v.turnCooldown = 1.4;
+                  break;
+                }
+              } else if (crossedNorth && Math.random() < turnChance) {
+                if (!(v.kind === 'police' && wanted >= 2 && GameState.player.y > v.y)) {
+                  v.x = laneNorthX;
+                  v.roadType = 'V';
+                  v.roadIdx = vi;
+                  v.dir = -1;
+                  v.angle = -Math.PI / 2;
+                  v.turnCooldown = 1.4;
+                  break;
+                }
+              }
+            }
+          } else {
+            for (let hi = 0; hi < H_ROADS.length; hi++) {
+              const ry = H_ROADS[hi].y;
+              const turnChance = v.kind === 'police' && wanted >= 2 ? 0.65 : 0.32;
+              const laneEastY = ry + 34;
+              const laneWestY = ry - 34;
+
+              const crossedEast = (v.dir === 1 && prevY < laneEastY && v.y >= laneEastY) || (v.dir === -1 && prevY > laneEastY && v.y <= laneEastY);
+              const crossedWest = (v.dir === 1 && prevY < laneWestY && v.y >= laneWestY) || (v.dir === -1 && prevY > laneWestY && v.y <= laneWestY);
+
+              if (crossedEast && Math.random() < turnChance) {
+                if (!(v.kind === 'police' && wanted >= 2 && GameState.player.x < v.x)) {
+                  v.y = laneEastY;
+                  v.roadType = 'H';
+                  v.roadIdx = hi;
+                  v.dir = 1;
+                  v.angle = 0;
+                  v.turnCooldown = 1.4;
+                  break;
+                }
+              } else if (crossedWest && Math.random() < turnChance) {
+                if (!(v.kind === 'police' && wanted >= 2 && GameState.player.x > v.x)) {
+                  v.y = laneWestY;
+                  v.roadType = 'H';
+                  v.roadIdx = hi;
+                  v.dir = -1;
+                  v.angle = Math.PI;
+                  v.turnCooldown = 1.4;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        // Solid collision between moving traffic vehicles & player
+        const boxW = v.roadType === 'H' ? v.length : v.width;
+        const boxH = v.roadType === 'H' ? v.width : v.length;
+        const carBox = { x: v.x - boxW / 2, y: v.y - boxH / 2, w: boxW, h: boxH };
+        if (resolveCircleAABB(GameState.player, carBox)) {
+          if (v.currentSpeed > 45 && GameState.player.hitCooldown <= 0) {
+            GameState.player.hitCooldown = 0.75;
+            const dmg = v.kind === 'police' ? 18 : 12;
+            GameState.player.health = Math.max(0, GameState.player.health - dmg);
+            SoundFX.playBump();
+
+            // Traffic collision penalty triggers Wanted Level increase
+            if (GameState.player.trafficPenaltyCooldown <= 0) {
+              GameState.player.trafficPenaltyCooldown = 8;
+              addWantedStars(1, 'Traffic Collision Penalty! +1 Wanted Star');
+            }
+            if (GameState.player.health <= 0) {
+              triggerBustedOrWasted();
+            }
+          }
+        }
+      }
+
+      // Respawn vehicles smoothly to maintain ambient city traffic
+      const desiredPolice = wanted > 0 ? Math.min(4, wanted) : 0;
+      while (GameState.vehicles.length < MAX_VEHICLES) {
+        const needCop = policeCount < desiredPolice;
+        const nv = spawnVehicle(true, needCop);
+        if (nv) {
+          GameState.vehicles.push(nv);
+          if (nv.kind === 'police') policeCount++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    /**
+     * ========================================================================
+     * 8. MISSION & QUEST SYSTEM + WANTED LEVEL SYSTEM + SHOP PURCHASES
+     * ========================================================================
+     */
+    /** Increase Wanted Level (0 to 5 stars) on penalty events */
+    function addWantedStars(amount, reasonText) {
+      const prev = GameState.save.wantedLevel;
+      GameState.save.wantedLevel = Math.min(5, prev + amount);
+      GameState.wantedDecayTimer = 14;
+      if (GameState.save.wantedLevel > prev) {
+        SoundFX.playSirenChirp();
+        showToast(`🚨 ${reasonText} (${GameState.save.wantedLevel}★)`);
+        saveProgress();
+        updateHUD();
+      }
+    }
+
+    /** Update Wanted Level zone detection & gradual cooldown outside marked zones */
+    function updateWantedSystem(dt) {
+      const zone = checkInsideRestrictedZone(GameState.player.x, GameState.player.y);
+      const wasInZone = GameState.inRestrictedZone;
+      GameState.inRestrictedZone = Boolean(zone);
+
+      if (zone) {
+        if (!wasInZone) {
+          addWantedStars(1, `Trespassing in ${zone.name}!`);
+        }
+        // Escalate heat if lingering inside marked zone
+        GameState.wantedDecayTimer -= dt;
+        if (GameState.wantedDecayTimer <= 0) {
+          GameState.wantedDecayTimer = 6;
+          if (GameState.save.wantedLevel < 5) {
+            addWantedStars(1, `Security Alert in ${zone.name}!`);
+          }
+        }
+      } else if (GameState.save.wantedLevel > 0) {
+        // Slowly decrease Wanted Level over time when staying out of marked zones
+        GameState.wantedDecayTimer -= dt;
+        if (GameState.wantedDecayTimer <= 0) {
+          GameState.save.wantedLevel = Math.max(0, GameState.save.wantedLevel - 1);
+          GameState.wantedDecayTimer = 14;
+          showToast(
+            GameState.save.wantedLevel === 0
+              ? '✅ Heat Cleared! Wanted Level is now 0★.'
+              : `📉 Heat Cooling Down (${GameState.save.wantedLevel}★ remaining)`
+          );
+          saveProgress();
+        }
+      }
+    }
+
+    /** Start a mission from a Mission Hub */
+    function startMission(missionId) {
+      const tpl = MISSION_TEMPLATES[missionId];
+      if (!tpl) return;
+
+      closeAllModals();
+
+      const m = {
+        id: tpl.id,
+        title: tpl.title,
+        type: tpl.type,
+        isStory: tpl.isStory,
+        timeLimit: tpl.timeLimit,
+        timeLeft: tpl.timeLimit,
+        rewardCash: tpl.rewardCash,
+        rewardRep: tpl.rewardRep,
+        progress: 0,
+        stageLabel: tpl.desc
+      };
+
+      if (tpl.type === 'delivery') {
+        const drop = tpl.randomTargets
+          ? tpl.randomTargets[Math.floor(Math.random() * tpl.randomTargets.length)]
+          : tpl.target;
+        m.target = { ...drop };
+        m.stageLabel = `Deliver parcel to ${drop.label}`;
+      } else if (tpl.type === 'pickup') {
+        m.items = tpl.items.map((it) => ({ ...it, collected: false }));
+        m.finalDrop = { ...tpl.finalDrop };
+        m.collectedCount = 0;
+        m.stageLabel = `Retrieve items (0/${m.items.length})`;
+        if (tpl.triggersHeat) {
+          addWantedStars(tpl.triggersHeat, 'Heist Alarm Tripped!');
+        }
+      } else if (tpl.type === 'escort') {
+        const drop = tpl.randomTargets
+          ? tpl.randomTargets[Math.floor(Math.random() * tpl.randomTargets.length)]
+          : tpl.target;
+        m.target = { ...drop };
+        m.startDist = Math.max(100, distBetween(GameState.player.x, GameState.player.y, drop.x, drop.y));
+        m.vipName = tpl.vipName;
+        m.stageLabel = `Escort ${tpl.vipName} to ${drop.label}`;
+
+        // Spawn Escort VIP NPC safely beside player
+        GameState.escortNpc = {
+          name: tpl.vipName,
+          x: GameState.player.x - 32,
+          y: GameState.player.y,
+          radius: 14,
+          angle: 0,
+          walkPhase: 0
+        };
+        resolveWorldCollisions(GameState.escortNpc);
+      }
+
+      GameState.activeMission = m;
+      SoundFX.playMissionStart();
+      showToast(`🎯 Mission Started: ${m.title}`);
+      updateHUD();
+    }
+
+    /** Update active mission progress, timer, pickups, escort AI, and completion/fail */
+    function updateActiveMission(dt) {
+      const m = GameState.activeMission;
+      if (!m) return;
+
+      m.timeLeft -= dt;
+      if (m.timeLeft <= 0) {
+        failActiveMission('Time limit expired! The contact pulled out.');
+        return;
+      }
+
+      const px = GameState.player.x;
+      const py = GameState.player.y;
+
+      if (m.type === 'delivery') {
+        const dist = distBetween(px, py, m.target.x, m.target.y);
+        m.progress = Math.max(0.08, Math.min(0.96, 1 - dist / 1800));
+        if (dist < 46) {
+          completeActiveMission();
+        }
+      } else if (m.type === 'pickup') {
+        const allPicked = m.collectedCount >= m.items.length;
+        if (!allPicked) {
+          for (const item of m.items) {
+            if (!item.collected && distBetween(px, py, item.x, item.y) < 38) {
+              item.collected = true;
+              m.collectedCount++;
+              SoundFX.playPickup();
+              showToast(`📦 Retrieved ${item.label} (${m.collectedCount}/${m.items.length})`);
+            }
+          }
+          m.progress = (m.collectedCount / m.items.length) * 0.75;
+          m.stageLabel =
+            m.collectedCount < m.items.length
+              ? `Retrieve items (${m.collectedCount}/${m.items.length})`
+              : `Return all items to ${m.finalDrop.label}`;
+        } else {
+          m.progress = 0.85;
+          m.stageLabel = `Return all items to ${m.finalDrop.label}`;
+          if (distBetween(px, py, m.finalDrop.x, m.finalDrop.y) < 46) {
+            completeActiveMission();
+          }
+        }
+      } else if (m.type === 'escort' && GameState.escortNpc) {
+        const vip = GameState.escortNpc;
+        const dx = px - vip.x;
+        const dy = py - vip.y;
+        const distToPlayer = Math.hypot(dx, dy);
+
+        // VIP follows smoothly within escort tether range
+        if (distToPlayer > 44 && distToPlayer < 420) {
+          const vipSpeed = Math.min(getPlayerSpeed() * 0.96, 235);
+          vip.angle = Math.atan2(dy, dx);
+          vip.x += (dx / distToPlayer) * vipSpeed * dt;
+          vip.y += (dy / distToPlayer) * vipSpeed * dt;
+          vip.walkPhase += dt * 9;
+          resolveWorldCollisions(vip);
+        }
+
+        const vipToGoal = distBetween(vip.x, vip.y, m.target.x, m.target.y);
+        const playerToGoal = distBetween(px, py, m.target.x, m.target.y);
+        m.progress = Math.max(0.05, Math.min(0.97, 1 - vipToGoal / m.startDist));
+        m.stageLabel =
+          distToPlayer >= 420
+            ? `⚠️ Return to ${m.vipName}! Too far behind!`
+            : `Escort ${m.vipName} to ${m.target.label}`;
+
+        if (playerToGoal < 52 && vipToGoal < 78) {
+          completeActiveMission();
+        }
+      }
+    }
+
+    /** Complete mission: award cash (within carry limit) & reputation, save, show popup */
+    function completeActiveMission() {
+      const m = GameState.activeMission;
+      if (!m) return;
+
+      const prevCash = GameState.save.cash;
+      const maxCap = GameState.save.cashLimit;
+      const newCash = Math.min(maxCap, prevCash + m.rewardCash);
+      const actualAdded = newCash - prevCash;
+
+      GameState.save.cash = newCash;
+      GameState.save.reputation += m.rewardRep;
+      GameState.save.missionsCompletedCount += 1;
+
+      if (m.isStory && !GameState.save.completedStoryIds.includes(m.id)) {
+        GameState.save.completedStoryIds.push(m.id);
+      }
+
+      const capWarning =
+        actualAdded < m.rewardCash
+          ? `<br><span style="color:#ffb703;">Wallet Limit ($${maxCap.toLocaleString()}) reached! Upgrade Carry Cap at Shops.</span>`
+          : '';
+
+      const title = m.title;
+      const cashStr = `+$${actualAdded.toLocaleString()}`;
+      const repStr = `+${m.rewardRep} REP`;
+
+      GameState.activeMission = null;
+      GameState.escortNpc = null;
+      saveProgress();
+      updateHUD();
+      SoundFX.playMissionPass();
+
+      showResultModal(
+        'MISSION PASSED!',
+        `<strong>${title}</strong> completed with ${Math.ceil(m.timeLeft)}s remaining.<br><br>
+        Reward: <strong style="color:#22d37a;">${cashStr}</strong> &nbsp;|&nbsp; <strong style="color:#ffb703;">${repStr}</strong>${capWarning}`
+      );
+    }
+
+    /** Fail mission: clear mission & escort NPC, show fail popup */
+    function failActiveMission(reason) {
+      const m = GameState.activeMission;
+      if (!m) return;
+      const title = m.title;
+      GameState.activeMission = null;
+      GameState.escortNpc = null;
+      SoundFX.playFail();
+      updateHUD();
+
+      showResultModal(
+        'MISSION FAILED',
+        `<strong>${title}</strong> failed.<br><br>${reason}<br>Visit a Mission Hub (M) to retry or pick another hustle.`,
+        true
+      );
+    }
+
+    /** Trigger Busted/Wasted Game Over recovery overlay when health drops to 0 */
+    function triggerBustedOrWasted() {
+      const bailFee = Math.min(GameState.save.cash, 200);
+      GameState.save.cash -= bailFee;
+      GameState.save.wantedLevel = 0;
+      GameState.player.health = GameState.player.maxHealth;
+      GameState.player.x = 1712;
+      GameState.player.y = 1850;
+      GameState.activeMission = null;
+      GameState.escortNpc = null;
+      SoundFX.playFail();
+      saveProgress();
+      updateHUD();
+
+      showResultModal(
+        'WASTED / BUSTED',
+        `You took too much heat on the streets of Vice Horizon.<br><br>
+        Hospital & Bail Fee: <strong style="color:#ff3b5c;">-$${bailFee}</strong><br>
+        Wanted Level cleared. Your upgrades and story progress remain safe.`,
+        true
+      );
+    }
+
+    /**
+     * ========================================================================
+     * 9. INPUT HANDLING (WASD DESKTOP + VIRTUAL TOUCH JOYSTICK MOBILE)
+     * ========================================================================
+     */
+    const keysDown = new Set();
+    const joystickState = {
+      active: false,
+      touchId: null,
+      dx: 0,
+      dy: 0
+    };
+
+    function clearMovementInputs() {
+      keysDown.clear();
+      joystickState.active = false;
+      joystickState.touchId = null;
+      joystickState.dx = 0;
+      joystickState.dy = 0;
+      const knob = document.getElementById('joystickKnob');
+      if (knob) knob.style.transform = 'translate(0px, 0px)';
+    }
+
+    function setupInputListeners() {
+      window.addEventListener('keydown', (e) => {
+        const code = e.code;
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(code)) {
+          if (GameState.running && !GameState.paused && !GameState.modalOpen) {
+            e.preventDefault();
+          }
+        }
+
+        if (code === 'Escape') {
+          if (GameState.modalOpen) {
+            closeAllModals();
+          } else if (GameState.running) {
+            togglePauseMenu();
+          }
+          return;
+        }
+
+        if (code === 'Space' && GameState.running && !GameState.paused && !GameState.modalOpen) {
+          triggerInteractAction();
+          return;
+        }
+
+        keysDown.add(code);
+      });
+
+      window.addEventListener('keyup', (e) => {
+        keysDown.delete(e.code);
+      });
+
+      window.addEventListener('blur', clearMovementInputs);
+
+      // Virtual Joystick Touch + Pointer support for Mobile / Touchscreens
+      const joyZone = document.getElementById('joystickZone');
+      const joyKnob = document.getElementById('joystickKnob');
+      const maxRadius = 38;
+
+      function updateJoystickFromPoint(clientX, clientY) {
+        const rect = joyZone.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        let dx = clientX - cx;
+        let dy = clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxRadius) {
+          dx = (dx / dist) * maxRadius;
+          dy = (dy / dist) * maxRadius;
+        }
+        joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        joystickState.dx = dx / maxRadius;
+        joystickState.dy = dy / maxRadius;
+      }
+
+      joyZone.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          if (joystickState.touchId !== null) return;
+          const t = e.changedTouches[0];
+          joystickState.active = true;
+          joystickState.touchId = t.identifier;
+          updateJoystickFromPoint(t.clientX, t.clientY);
+        },
+        { passive: false }
+      );
+
+      joyZone.addEventListener(
+        'touchmove',
+        (e) => {
+          e.preventDefault();
+          for (const t of e.changedTouches) {
+            if (t.identifier === joystickState.touchId) {
+              updateJoystickFromPoint(t.clientX, t.clientY);
+              break;
+            }
+          }
+        },
+        { passive: false }
+      );
+
+      const endTouch = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === joystickState.touchId) {
+            clearMovementInputs();
+            break;
+          }
+        }
+      };
+
+      joyZone.addEventListener('touchend', endTouch, { passive: false });
+      joyZone.addEventListener('touchcancel', endTouch, { passive: false });
+
+      // Mouse drag fallback on joystick for desktop touch testing
+      joyZone.addEventListener('mousedown', (e) => {
+        joystickState.active = true;
+        updateJoystickFromPoint(e.clientX, e.clientY);
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (joystickState.active && joystickState.touchId === null) {
+          updateJoystickFromPoint(e.clientX, e.clientY);
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (joystickState.active && joystickState.touchId === null) {
+          clearMovementInputs();
+        }
+      });
+
+      // Auto-detect touch devices to show mobile virtual joystick + interact button
+      const isTouchCapable = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768;
+      if (isTouchCapable) {
+        setMobileControlsVisible(true);
+      }
+    }
+
+    function setMobileControlsVisible(visible) {
+      document.getElementById('mobileControls').classList.toggle('visible', visible);
+      document.getElementById('mobileInteractBtn').classList.toggle('visible', visible);
+    }
+
+    /**
+     * ========================================================================
+     * 10. PLAYER UPDATE, INTERACTABLE SCAN & 90-SECOND DAY-NIGHT CYCLE
+     * ========================================================================
+     */
+    /** Update player movement from WASD / Arrows or virtual joystick */
+    function updatePlayer(dt) {
+      const p = GameState.player;
+      if (p.hitCooldown > 0) p.hitCooldown -= dt;
+      if (p.trafficPenaltyCooldown > 0) p.trafficPenaltyCooldown -= dt;
+
+      // Passive slow health recovery when out of high danger
+      if (!GameState.inRestrictedZone && GameState.save.wantedLevel === 0 && p.health < p.maxHealth) {
+        p.health = Math.min(p.maxHealth, p.health + dt * 2.5);
+      }
+
+      let moveX = joystickState.dx;
+      let moveY = joystickState.dy;
+
+      if (keysDown.has('KeyW') || keysDown.has('ArrowUp')) moveY -= 1;
+      if (keysDown.has('KeyS') || keysDown.has('ArrowDown')) moveY += 1;
+      if (keysDown.has('KeyA') || keysDown.has('ArrowLeft')) moveX -= 1;
+      if (keysDown.has('KeyD') || keysDown.has('ArrowRight')) moveX += 1;
+
+      const mag = Math.hypot(moveX, moveY);
+      if (mag > 0.08) {
+        const clampedMag = Math.min(1, mag);
+        const nx = moveX / mag;
+        const ny = moveY / mag;
+        const speed = getPlayerSpeed() * clampedMag;
+
+        p.x += nx * speed * dt;
+        p.y += ny * speed * dt;
+        p.angle = Math.atan2(ny, nx);
+        p.isMoving = true;
+        p.walkCycle += dt * (9 + GameState.save.speedTier * 1.4);
+      } else {
+        p.isMoving = false;
+      }
+
+      // Enforce solid collisions against buildings, walls & parked vehicles
+      resolveWorldCollisions(p);
+
+      // Smooth camera tracking clamped neatly to world bounds
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+      const halfW = Math.min(WORLD_WIDTH / 2, viewW / 2);
+      const halfH = Math.min(WORLD_HEIGHT / 2, viewH / 2);
+      const targetCamX = Math.max(halfW, Math.min(WORLD_WIDTH - halfW, p.x));
+      const targetCamY = Math.max(halfH, Math.min(WORLD_HEIGHT - halfH, p.y));
+      GameState.camera.x += (targetCamX - GameState.camera.x) * Math.min(1, dt * 10);
+      GameState.camera.y += (targetCamY - GameState.camera.y) * Math.min(1, dt * 10);
+
+      // Scan nearby interactive Shops & Mission Hubs
+      let closest = null;
+      let bestDist = 9999;
+
+      for (const shop of WorldData.shops) {
+        const d = distBetween(p.x, p.y, shop.x, shop.y);
+        if (d < shop.radius + 22 && d < bestDist) {
+          bestDist = d;
+          closest = { kind: 'shop', data: shop };
+        }
+      }
+      for (const hub of WorldData.missionHubs) {
+        const d = distBetween(p.x, p.y, hub.x, hub.y);
+        if (d < hub.radius + 22 && d < bestDist) {
+          bestDist = d;
+          closest = { kind: 'hub', data: hub };
+        }
+      }
+
+      GameState.nearbyInteractable = closest;
+      const promptEl = document.getElementById('interactPrompt');
+      if (closest) {
+        const prefix = closest.kind === 'shop' ? 'Enter' : 'Open Missions at';
+        promptEl.textContent = `SPACE / Tap — ${prefix} ${closest.data.name}`;
+        promptEl.classList.add('visible');
+      } else {
+        promptEl.classList.remove('visible');
+      }
+    }
+
+    /** Compute lighting parameters from 90-second automatic Day-Night Cycle */
+    function getLightingState() {
+      const cyclePos = (GameState.save.worldTime % DAY_NIGHT_CYCLE_SECONDS) / DAY_NIGHT_CYCLE_SECONDS;
+      // 0.00 - 0.42: Bright Daytime Sun
+      // 0.42 - 0.60: Golden Sunset Glow
+      // 0.60 - 0.88: Neon Purple / Pink / Blue Night
+      // 0.88 - 1.00: Tropical Dawn
+      let phaseName = 'DAYLIGHT';
+      let icon = '☀️';
+      let overlayRgba = 'rgba(255, 240, 210, 0.0)';
+      let nightStrength = 0;
+      let shadowDx = 12;
+      let shadowDy = 14;
+
+      if (cyclePos < 0.42) {
+        phaseName = 'TROPICAL DAY';
+        icon = '☀️';
+        const t = cyclePos / 0.42;
+        overlayRgba = 'rgba(255, 245, 200, 0.03)';
+        nightStrength = 0;
+        shadowDx = -12 + t * 24;
+        shadowDy = 12;
+      } else if (cyclePos < 0.60) {
+        phaseName = 'GOLDEN SUNSET';
+        icon = '🌇';
+        const t = (cyclePos - 0.42) / 0.18;
+        const r = Math.round(255 - t * 145);
+        const g = Math.round(135 - t * 100);
+        const b = Math.round(65 + t * 85);
+        const a = (0.14 + t * 0.28).toFixed(3);
+        overlayRgba = `rgba(${r}, ${g}, ${b}, ${a})`;
+        nightStrength = t * 0.65;
+        shadowDx = 16 + t * 18;
+        shadowDy = 14 + t * 10;
+      } else if (cyclePos < 0.88) {
+        phaseName = 'NEON NIGHT';
+        icon = '🌃';
+        overlayRgba = 'rgba(18, 10, 48, 0.56)';
+        nightStrength = 1;
+        shadowDx = 14;
+        shadowDy = 14;
+      } else {
+        phaseName = 'MIAMI DAWN';
+        icon = '🌅';
+        const t = (cyclePos - 0.88) / 0.12;
+        const a = (0.52 * (1 - t)).toFixed(3);
+        overlayRgba = `rgba(90, 45, 110, ${a})`;
+        nightStrength = 1 - t;
+        shadowDx = -18 + t * 6;
+        shadowDy = 18 - t * 6;
+      }
+
+      // Convert cycle position into readable 24-hour clock starting at 08:00
+      const totalHours = (cyclePos * 24 + 8) % 24;
+      const hrs = Math.floor(totalHours);
+      const mins = Math.floor((totalHours - hrs) * 60);
+      const clockStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+
+      return { phaseName, icon, clockStr, overlayRgba, nightStrength, shadowDx, shadowDy };
+    }
+
+    /**
+     * ========================================================================
+     * 11. HTML5 CANVAS 2.5D RENDERER & MINI-MAP RADAR
+     * ========================================================================
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const miniCanvas = document.getElementById('minimapCanvas');
+    const miniCtx = miniCanvas.getContext('2d');
+
+    function resizeGameCanvas() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    /** Draw a customizable 2.5D Character (used for Player, Avatar Preview, VIP, Pedestrians) */
+    function drawCharacter25D(targetCtx, x, y, angle, walkPhase, appearance, isPlayer = false) {
+      targetCtx.save();
+      targetCtx.translate(x, y);
+
+      // Ground drop shadow
+      targetCtx.fillStyle = 'rgba(0, 0, 0, 0.34)';
+      targetCtx.beginPath();
+      targetCtx.ellipse(0, 6, 13, 8, 0, 0, Math.PI * 2);
+      targetCtx.fill();
+
+      if (isPlayer) {
+        // Subtle cyan/gold player identification ring
+        targetCtx.strokeStyle = 'rgba(0, 240, 255, 0.75)';
+        targetCtx.lineWidth = 2;
+        targetCtx.beginPath();
+        targetCtx.ellipse(0, 4, 17, 11, 0, 0, Math.PI * 2);
+        targetCtx.stroke();
+      }
+
+      targetCtx.rotate(angle);
+
+      const stride = Math.sin(walkPhase) * 5;
+      // Legs
+      targetCtx.fillStyle = '#1d2438';
+      targetCtx.fillRect(-3 + stride, -9, 6, 6);
+      targetCtx.fillRect(-3 - stride, 3, 6, 6);
+
+      // Arms
+      targetCtx.fillStyle = appearance.skinTone;
+      targetCtx.beginPath();
+      targetCtx.arc(4 - stride * 0.4, -11, 3.8, 0, Math.PI * 2);
+      targetCtx.arc(4 + stride * 0.4, 11, 3.8, 0, Math.PI * 2);
+      targetCtx.fill();
+
+      // Torso / Jacket
+      targetCtx.fillStyle = appearance.outfitColor;
+      targetCtx.beginPath();
+      targetCtx.roundRect(-8, -10, 15, 20, 5);
+      targetCtx.fill();
+      targetCtx.strokeStyle = 'rgba(0,0,0,0.35)';
+      targetCtx.lineWidth = 1.2;
+      targetCtx.stroke();
+
+      // Gold Chain accessory
+      if (appearance.accessory === 'Gold Chain') {
+        targetCtx.strokeStyle = '#ffb703';
+        targetCtx.lineWidth = 2;
+        targetCtx.beginPath();
+        targetCtx.arc(4, 0, 5, -0.9, 0.9);
+        targetCtx.stroke();
+      }
+
+      // Head
+      targetCtx.fillStyle = appearance.skinTone;
+      targetCtx.beginPath();
+      targetCtx.arc(2, 0, 7.2, 0, Math.PI * 2);
+      targetCtx.fill();
+
+      // Hair Style
+      targetCtx.fillStyle = appearance.hairColor;
+      if (appearance.hairStyle === 'Afro') {
+        targetCtx.beginPath();
+        targetCtx.arc(0, 0, 8.6, 0, Math.PI * 2);
+        targetCtx.fill();
+      } else if (appearance.hairStyle === 'Mohawk') {
+        targetCtx.fillRect(-7, -2.5, 13, 5);
+      } else if (appearance.hairStyle === 'Waves') {
+        targetCtx.beginPath();
+        targetCtx.arc(-1, 0, 7.8, Math.PI * 0.45, Math.PI * 1.55);
+        targetCtx.fill();
+      } else {
+        // Slick Back
+        targetCtx.beginPath();
+        targetCtx.arc(0, 0, 7.4, Math.PI * 0.45, Math.PI * 1.55);
+        targetCtx.fill();
+      }
+
+      // Sunglasses / Neon Visor facing forward (+x)
+      if (appearance.accessory === 'Aviators') {
+        targetCtx.fillStyle = '#0b0d14';
+        targetCtx.fillRect(6, -5.5, 3, 4.5);
+        targetCtx.fillRect(6, 1, 3, 4.5);
+      } else if (appearance.accessory === 'Neon Visor') {
+        targetCtx.fillStyle = '#00f0ff';
+        targetCtx.fillRect(6.2, -6, 3.2, 12);
+      }
+
+      targetCtx.restore();
+    }
+
+    /** Draw a 2.5D vehicle (Car, Taxi, Pickup Truck, Police Cruiser) */
+    function drawVehicle25D(v, nightStrength, timeSec) {
+      ctx.save();
+      ctx.translate(v.x, v.y);
+      ctx.rotate(v.angle);
+
+      const halfL = v.length / 2;
+      const halfW = v.width / 2;
+
+      // Ground shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
+      ctx.beginPath();
+      ctx.roundRect(-halfL + 4, -halfW + 5, v.length, v.width, 7);
+      ctx.fill();
+
+      // Headlight cones at sunset/night
+      if (nightStrength > 0.15) {
+        const grad = ctx.createLinearGradient(halfL, 0, halfL + 115, 0);
+        grad.addColorStop(0, `rgba(255, 245, 200, ${(0.45 * nightStrength).toFixed(2)})`);
+        grad.addColorStop(1, 'rgba(255, 245, 200, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(halfL - 2, -halfW + 4);
+        ctx.lineTo(halfL + 115, -halfW - 22);
+        ctx.lineTo(halfL + 115, halfW + 22);
+        ctx.lineTo(halfL - 2, halfW - 4);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Main chassis
+      ctx.fillStyle = v.color;
+      ctx.beginPath();
+      ctx.roundRect(-halfL, -halfW, v.length, v.width, 7);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Police door stripe & roof lightbar
+      if (v.kind === 'police') {
+        ctx.fillStyle = '#f8f9fa';
+        ctx.fillRect(-14, -halfW + 1, 28, v.width - 2);
+      }
+
+      // Cabin / Windshields (2.5D roof offset)
+      if (v.kind === 'pickup') {
+        ctx.fillStyle = '#212529';
+        ctx.fillRect(-halfL + 5, -halfW + 4, 22, v.width - 8); // Open truck bed
+        ctx.fillStyle = v.color;
+        ctx.beginPath();
+        ctx.roundRect(0, -halfW + 3, 20, v.width - 6, 4);
+        ctx.fill();
+        ctx.fillStyle = '#1b263b';
+        ctx.fillRect(14, -halfW + 5, 8, v.width - 10);
+      } else {
+        ctx.fillStyle = '#162032';
+        ctx.beginPath();
+        ctx.roundRect(-14, -halfW + 4, 30, v.width - 8, 4);
+        ctx.fill();
+        ctx.fillStyle = v.color;
+        ctx.beginPath();
+        ctx.roundRect(-10, -halfW + 6, 18, v.width - 12, 3);
+        ctx.fill();
+      }
+
+      // Taxi roof sign
+      if (v.kind === 'taxi') {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-4, -5, 8, 10);
+      }
+
+      // Police flashing lightbar
+      if (v.kind === 'police') {
+        const flash = Math.floor(timeSec * 8) % 2 === 0;
+        ctx.fillStyle = flash ? '#ff2a54' : '#00b4ff';
+        ctx.fillRect(-3, -halfW + 5, 6, (v.width - 10) / 2);
+        ctx.fillStyle = flash ? '#00b4ff' : '#ff2a54';
+        ctx.fillRect(-3, 0, 6, (v.width - 10) / 2);
+      }
+
+      // Headlights & Taillights
+      ctx.fillStyle = '#fff3b0';
+      ctx.fillRect(halfL - 3, -halfW + 4, 3, 6);
+      ctx.fillRect(halfL - 3, halfW - 10, 3, 6);
+
+      ctx.fillStyle = '#ff2a54';
+      ctx.fillRect(-halfL, -halfW + 4, 3, 6);
+      ctx.fillRect(-halfL, halfW - 10, 3, 6);
+
+      ctx.restore();
+    }
+
+    /** Draw a 2.5D extruded building with depth walls, roof details, & neon trim */
+    function drawBuilding25D(b, camX, camY, lighting) {
+      // Camera-relative parallax roof offset creates authentic 2.5D depth
+      const dx = ((b.x + b.w / 2) - camX) * 0.065;
+      const dy = ((b.y + b.h / 2) - camY) * 0.065;
+      const maxShift = Math.min(34, b.height * 0.55);
+      const rx = Math.max(-maxShift, Math.min(maxShift, dx));
+      const ry = Math.max(-maxShift, Math.min(maxShift, dy)) - b.height * 0.24;
+
+      const bx = b.x;
+      const by = b.y;
+      const bw = b.w;
+      const bh = b.h;
+      const topX = bx + rx;
+      const topY = by + ry;
+
+      // Dynamic sun/moon ground shadow
+      ctx.fillStyle = 'rgba(8, 10, 22, 0.30)';
+      ctx.fillRect(bx + lighting.shadowDx, by + lighting.shadowDy, bw, bh);
+
+      // Draw visible side faces connecting base corners to roof corners
+      const wallDark = 'rgba(0, 0, 0, 0.25)';
+      // South wall
+      ctx.fillStyle = b.wallColor;
+      ctx.beginPath();
+      ctx.moveTo(bx, by + bh);
+      ctx.lineTo(bx + bw, by + bh);
+      ctx.lineTo(topX + bw, topY + bh);
+      ctx.lineTo(topX, topY + bh);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';
+      ctx.fill();
+
+      // North wall (visible when south of camera)
+      if (topY > by) {
+        ctx.fillStyle = b.wallColor;
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx + bw, by);
+        ctx.lineTo(topX + bw, topY);
+        ctx.lineTo(topX, topY);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // East wall
+      ctx.fillStyle = b.wallColor;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw, by);
+      ctx.lineTo(bx + bw, by + bh);
+      ctx.lineTo(topX + bw, topY + bh);
+      ctx.lineTo(topX + bw, topY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = wallDark;
+      ctx.fill();
+
+      // West wall
+      ctx.fillStyle = b.wallColor;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx, by + bh);
+      ctx.lineTo(topX, topY + bh);
+      ctx.lineTo(topX, topY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.fill();
+
+      // Roof Surface
+      ctx.fillStyle = b.roofColor;
+      ctx.fillRect(topX, topY, bw, bh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(topX, topY, bw, bh);
+
+      // Roof Architecture Details
+      if (b.roofStyle === 'terracotta') {
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.beginPath();
+        ctx.moveTo(topX, topY);
+        ctx.lineTo(topX + bw / 2, topY + bh / 2);
+        ctx.lineTo(topX + bw, topY);
+        ctx.moveTo(topX, topY + bh);
+        ctx.lineTo(topX + bw / 2, topY + bh / 2);
+        ctx.lineTo(topX + bw, topY + bh);
+        ctx.stroke();
+      } else if (b.roofStyle === 'helipad') {
+        const cx = topX + bw / 2;
+        const cy = topY + bh / 2;
+        ctx.strokeStyle = '#ffb703';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.min(bw, bh) * 0.26, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#ffb703';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('H', cx, cy);
+      } else if (b.roofStyle === 'pool') {
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillRect(topX + 24, topY + 24, bw - 48, bh - 48);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(topX + 24, topY + 24, bw - 48, bh - 48);
+      } else if (b.roofStyle === 'parking') {
+        ctx.strokeStyle = '#ffb703';
+        ctx.lineWidth = 2;
+        for (let px = topX + 35; px < topX + bw - 35; px += 42) {
+          ctx.beginPath();
+          ctx.moveTo(px, topY + 14);
+          ctx.lineTo(px, topY + 46);
+          ctx.moveTo(px, topY + bh - 14);
+          ctx.lineTo(px, topY + bh - 46);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#dee2e6';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('P — ROOFTOP DECK', topX + bw / 2, topY + bh / 2 + 4);
+      } else if (b.roofStyle === 'ac') {
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.fillRect(topX + 18, topY + 18, 28, 22);
+        ctx.fillRect(topX + bw - 52, topY + bh - 42, 30, 24);
+      }
+
+      // Neon Sign Trim (intensifies at Sunset & Night!)
+      if (b.neonColor) {
+        const glowAlpha = 0.45 + lighting.nightStrength * 0.55;
+        ctx.strokeStyle = b.neonColor;
+        ctx.globalAlpha = glowAlpha;
+        ctx.lineWidth = 2.5 + lighting.nightStrength * 1.5;
+        ctx.strokeRect(topX + 2, topY + 2, bw - 4, bh - 4);
+        ctx.globalAlpha = 1;
+      }
+
+      // Building Label Sign
+      if (b.label) {
+        ctx.fillStyle = b.neonColor || '#ffffff';
+        ctx.font = '800 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, topX + bw / 2, topY + bh - 10);
+      }
+    }
+
+    /** Draw animated tropical Palm Tree */
+    function drawPalmTree(tree, timeSec) {
+      const sway = Math.sin(timeSec * 1.7 + tree.swayOffset) * 3.5;
+      ctx.save();
+      ctx.translate(tree.x, tree.y);
+      ctx.scale(tree.scale, tree.scale);
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(10, 12, 22, 12, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Trunk
+      ctx.strokeStyle = '#8d5b4c';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(sway * 0.5, -14, sway, -24);
+      ctx.stroke();
+
+      // 6 Swaying Palm Fronds
+      ctx.translate(sway, -24);
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2 + sway * 0.02;
+        ctx.save();
+        ctx.rotate(ang);
+        ctx.fillStyle = i % 2 === 0 ? '#2b9348' : '#55a630';
+        ctx.beginPath();
+        ctx.ellipse(14, 0, 15, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    /** Render the entire Vice Horizon game world onto the main canvas */
+    function renderGameWorld() {
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+      const camX = GameState.camera.x;
+      const camY = GameState.camera.y;
+      const offsetX = viewW / 2 - camX;
+      const offsetY = viewH / 2 - camY;
+      const lighting = getLightingState();
+      const timeSec = GameState.timeElapsed;
+
+      ctx.clearRect(0, 0, viewW, viewH);
+      ctx.save();
+      ctx.translate(offsetX, offsetY);
+
+      // 1. Base City Pavement / Grass Ground
+      ctx.fillStyle = '#333b4d';
+      ctx.fillRect(0, 0, BEACH_START_X, WORLD_HEIGHT);
+
+      // Grassy Suburban Zone tint (Column 1 North & West Edge)
+      ctx.fillStyle = '#3f6b4b';
+      ctx.fillRect(25, 365, 200, 500);
+      ctx.fillRect(405, 365, 550, 490);
+
+      // 2. Beachfront Promenade, Golden Sand & Animated Atlantic Ocean
+      ctx.fillStyle = '#574e6d';
+      ctx.fillRect(2850, 0, 110, WORLD_HEIGHT); // Boardwalk
+
+      ctx.fillStyle = '#f2cc8f';
+      ctx.fillRect(BEACH_START_X, 0, OCEAN_START_X - BEACH_START_X, WORLD_HEIGHT);
+
+      // Animated turquoise ocean & surf foam waves
+      ctx.fillStyle = '#0077b6';
+      ctx.fillRect(OCEAN_START_X, 0, WORLD_WIDTH - OCEAN_START_X, WORLD_HEIGHT);
+
+      const waveShift = Math.sin(timeSec * 1.8) * 14;
+      ctx.fillStyle = '#00b4d8';
+      ctx.fillRect(OCEAN_START_X - 8 + waveShift * 0.5, 0, 56, WORLD_HEIGHT);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
+      ctx.fillRect(OCEAN_START_X - 10 + waveShift, 0, 10, WORLD_HEIGHT);
+
+      // 3. Sidewalk Blocks & Crosswalk Foundations
+      ctx.fillStyle = '#7b8499';
+      WorldData.sidewalkLoops.forEach((loop) => {
+        const minX = loop[0].x - 16;
+        const minY = loop[0].y - 16;
+        const w = loop[1].x - loop[0].x + 32;
+        const h = loop[2].y - loop[1].y + 32;
+        ctx.fillRect(minX, minY, w, h);
+      });
+
+      // 4. Asphalt Roads, Centerlines & Intersections
+      ctx.fillStyle = '#1c202c';
+      H_ROADS.forEach((hr) => {
+        ctx.fillRect(0, hr.y - hr.halfWidth, 2850, hr.halfWidth * 2);
+      });
+      V_ROADS.forEach((vr) => {
+        ctx.fillRect(vr.x - vr.halfWidth, 0, vr.halfWidth * 2, WORLD_HEIGHT);
+      });
+
+      // Dashed Yellow Centerlines
+      ctx.strokeStyle = '#f4a261';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([22, 18]);
+      H_ROADS.forEach((hr) => {
+        ctx.beginPath();
+        ctx.moveTo(0, hr.y);
+        ctx.lineTo(2850, hr.y);
+        ctx.stroke();
+      });
+      V_ROADS.forEach((vr) => {
+        ctx.beginPath();
+        ctx.moveTo(vr.x, 0);
+        ctx.lineTo(vr.x, WORLD_HEIGHT);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      // White Crosswalks at every intersection
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      H_ROADS.forEach((hr) => {
+        V_ROADS.forEach((vr) => {
+          for (let s = -48; s <= 48; s += 16) {
+            ctx.fillRect(vr.x + s - 4, hr.y - hr.halfWidth - 12, 8, 12);
+            ctx.fillRect(vr.x + s - 4, hr.y + hr.halfWidth, 8, 12);
+          }
+        });
+      });
+
+      // 5. Marked Restricted Security Zones (Wanted Trigger Areas)
+      WorldData.restrictedZones.forEach((z) => {
+        ctx.fillStyle = 'rgba(255, 46, 99, 0.16)';
+        ctx.fillRect(z.x, z.y, z.w, z.h);
+        ctx.strokeStyle = Math.floor(timeSec * 3) % 2 === 0 ? '#ff3b5c' : '#3a86ff';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([12, 8]);
+        ctx.strokeRect(z.x, z.y, z.w, z.h);
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#ff758f';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`⚠ ${z.name.toUpperCase()}`, z.x + z.w / 2, z.y + 18);
+      });
+
+      // 6. Interactive Shop Markers, Mission Hubs & Active Mission Waypoints
+      const pulse = 0.75 + Math.sin(timeSec * 5) * 0.25;
+
+      WorldData.shops.forEach((shop) => {
+        ctx.strokeStyle = shop.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(shop.x, shop.y, 24 + pulse * 4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(10, 14, 28, 0.72)';
+        ctx.beginPath();
+        ctx.arc(shop.x, shop.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = shop.color;
+        ctx.font = '900 18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(shop.shortLabel, shop.x, shop.y);
+      });
+
+      WorldData.missionHubs.forEach((hub) => {
+        ctx.strokeStyle = hub.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(hub.x, hub.y, 24 + pulse * 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(10, 14, 28, 0.8)';
+        ctx.beginPath();
+        ctx.arc(hub.x, hub.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = hub.color;
+        ctx.font = '900 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('M', hub.x, hub.y);
+      });
+
+      // Active Mission Targets & Collectible Crates
+      const m = GameState.activeMission;
+      if (m) {
+        const drawBeacon = (tx, ty, color, text) => {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.arc(tx, ty, 24 + Math.sin(timeSec * 7) * 6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255, 183, 3, 0.22)';
+          ctx.beginPath();
+          ctx.arc(tx, ty, 22, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(text, tx, ty - 32);
+        };
+
+        if (m.type === 'delivery' || m.type === 'escort') {
+          drawBeacon(m.target.x, m.target.y, '#ffb703', `★ ${m.target.label}`);
+        } else if (m.type === 'pickup') {
+          if (m.collectedCount < m.items.length) {
+            m.items.forEach((it) => {
+              if (!it.collected) {
+                drawBeacon(it.x, it.y, '#00f0ff', `📦 ${it.label}`);
+              }
+            });
+          } else {
+            drawBeacon(m.finalDrop.x, m.finalDrop.y, '#22d37a', `★ ${m.finalDrop.label}`);
+          }
+        }
+      }
+
+      // 7. Parked Vehicles
+      WorldData.parkedVehicles.forEach((pv) => {
+        drawVehicle25D(
+          {
+            x: pv.cx,
+            y: pv.cy,
+            angle: pv.angle,
+            length: 62,
+            width: 34,
+            color: pv.color,
+            kind: pv.type
+          },
+          lighting.nightStrength * 0.2,
+          timeSec
+        );
+      });
+
+      // 8. Moving AI Traffic Vehicles (below overpass unless on highway)
+      GameState.vehicles.forEach((v) => {
+        if (Math.abs(v.x - camX) < viewW * 0.8 && Math.abs(v.y - camY) < viewH * 0.8) {
+          drawVehicle25D(v, lighting.nightStrength, timeSec);
+        }
+      });
+
+      // 9. Pedestrians, Escort VIP & Player
+      GameState.pedestrians.forEach((p) => {
+        if (Math.abs(p.x - camX) < viewW * 0.7 && Math.abs(p.y - camY) < viewH * 0.7) {
+          drawCharacter25D(ctx, p.x, p.y, p.angle, p.walkPhase, {
+            outfitColor: p.shirtColor,
+            skinTone: p.skinTone,
+            hairColor: p.hairColor,
+            hairStyle: 'Waves',
+            accessory: 'None'
+          });
+        }
+      });
+
+      if (GameState.escortNpc) {
+        const vip = GameState.escortNpc;
+        ctx.strokeStyle = '#ffb703';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(vip.x, vip.y, 20, 0, Math.PI * 2);
+        ctx.stroke();
+        drawCharacter25D(ctx, vip.x, vip.y, vip.angle, vip.walkPhase, {
+          outfitColor: '#ffb703',
+          skinTone: '#e0ac69',
+          hairColor: '#1d1e22',
+          hairStyle: 'Waves',
+          accessory: 'Aviators'
+        });
+        ctx.fillStyle = '#ffb703';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('VIP', vip.x, vip.y - 22);
+      }
+
+      // Draw Player Avatar
+      const av = GameState.save.avatar;
+      drawCharacter25D(
+        ctx,
+        GameState.player.x,
+        GameState.player.y,
+        GameState.player.angle,
+        GameState.player.walkCycle,
+        {
+          outfitColor: av.outfitColor,
+          skinTone: av.skinTone,
+          hairColor: av.hairColor,
+          hairStyle: HAIR_STYLES[av.hairStyleIdx],
+          accessory: ACCESSORIES[av.accessoryIdx]
+        },
+        true
+      );
+
+      // 10. 2.5D Buildings (Cull off-screen buildings for 60fps mobile performance)
+      WorldData.buildings.forEach((b) => {
+        if (
+          b.x + b.w > camX - viewW * 0.75 &&
+          b.x < camX + viewW * 0.75 &&
+          b.y + b.h > camY - viewH * 0.75 &&
+          b.y < camY + viewH * 0.75
+        ) {
+          drawBuilding25D(b, camX, camY, lighting);
+        }
+      });
+
+      // 11. Highway Overpass Bridge Deck (renders above pedestrian underpass!)
+      if (WorldData.overpassDeck) {
+        const ov = WorldData.overpassDeck;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(ov.x + 8, ov.y + 12, ov.w, ov.h);
+        ctx.fillStyle = '#2b303f';
+        ctx.fillRect(ov.x, ov.y, ov.w, ov.h);
+        ctx.strokeStyle = '#adb5bd';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(ov.x, ov.y + 4);
+        ctx.lineTo(ov.x + ov.w, ov.y + 4);
+        ctx.moveTo(ov.x, ov.y + ov.h - 4);
+        ctx.lineTo(ov.x + ov.w, ov.y + ov.h - 4);
+        ctx.stroke();
+
+        // Redraw highway vehicles crossing over the overpass deck
+        GameState.vehicles.forEach((v) => {
+          if (v.roadType === 'H' && v.roadIdx === 1 && v.x > ov.x - 40 && v.x < ov.x + ov.w + 40) {
+            drawVehicle25D(v, lighting.nightStrength, timeSec);
+          }
+        });
+      }
+
+      // 12. Palm Trees
+      WorldData.palmTrees.forEach((tree) => {
+        if (Math.abs(tree.x - camX) < viewW * 0.7 && Math.abs(tree.y - camY) < viewH * 0.7) {
+          drawPalmTree(tree, timeSec);
+        }
+      });
+
+      // 13. Streetlamps & Neon Night Light Pools
+      if (lighting.nightStrength > 0.1) {
+        WorldData.streetLamps.forEach((lamp) => {
+          if (Math.abs(lamp.x - camX) < viewW * 0.7 && Math.abs(lamp.y - camY) < viewH * 0.7) {
+            const r = 56;
+            const g = ctx.createRadialGradient(lamp.x, lamp.y, 4, lamp.x, lamp.y, r);
+            const col = lamp.neon ? '255, 46, 147' : '255, 200, 110';
+            g.addColorStop(0, `rgba(${col}, ${(0.35 * lighting.nightStrength).toFixed(2)})`);
+            g.addColorStop(1, `rgba(${col}, 0)`);
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.arc(lamp.x, lamp.y, r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
+      }
+
+      ctx.restore();
+
+      // 14. Screen-space Day-Night Atmospheric Grading Overlay
+      ctx.fillStyle = lighting.overlayRgba;
+      ctx.fillRect(0, 0, viewW, viewH);
+
+      // 15. Directional Objective Arrow near screen edge when mission target is off-screen
+      if (GameState.activeMission) {
+        let targetPt = null;
+        if (m.type === 'delivery' || m.type === 'escort') targetPt = m.target;
+        else if (m.type === 'pickup') {
+          targetPt = m.collectedCount < m.items.length ? m.items.find((i) => !i.collected) : m.finalDrop;
+        }
+        if (targetPt) {
+          const sx = targetPt.x + offsetX;
+          const sy = targetPt.y + offsetY;
+          if (sx < 30 || sx > viewW - 30 || sy < 30 || sy > viewH - 30) {
+            const ang = Math.atan2(sy - viewH / 2, sx - viewW / 2);
+            const rx = viewW / 2 + Math.cos(ang) * Math.min(viewW * 0.36, 220);
+            const ry = viewH / 2 + Math.sin(ang) * Math.min(viewH * 0.34, 180);
+            ctx.save();
+            ctx.translate(rx, ry);
+            ctx.rotate(ang);
+            ctx.fillStyle = '#ffb703';
+            ctx.beginPath();
+            ctx.moveTo(14, 0);
+            ctx.lineTo(-9, -9);
+            ctx.lineTo(-5, 0);
+            ctx.lineTo(-9, 9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+    }
+
+    /** Render the GTA-style Radar Mini-map centered around the player */
+    function renderMinimap() {
+      const mw = miniCanvas.width;
+      const mh = miniCanvas.height;
+      const scale = 0.082; // Shows ~2400px radius area neatly
+      const px = GameState.player.x;
+      const py = GameState.player.y;
+
+      miniCtx.clearRect(0, 0, mw, mh);
+      miniCtx.fillStyle = '#111829';
+      miniCtx.fillRect(0, 0, mw, mh);
+
+      miniCtx.save();
+      miniCtx.translate(mw / 2 - px * scale, mh / 2 - py * scale);
+
+      // Ocean & Beach
+      miniCtx.fillStyle = '#b9935a';
+      miniCtx.fillRect(BEACH_START_X * scale, 0, (OCEAN_START_X - BEACH_START_X) * scale, WORLD_HEIGHT * scale);
+      miniCtx.fillStyle = '#005f8a';
+      miniCtx.fillRect(OCEAN_START_X * scale, 0, (WORLD_WIDTH - OCEAN_START_X) * scale, WORLD_HEIGHT * scale);
+
+      // Roads
+      miniCtx.fillStyle = '#2d3748';
+      H_ROADS.forEach((hr) => {
+        miniCtx.fillRect(0, (hr.y - hr.halfWidth) * scale, 2850 * scale, hr.halfWidth * 2 * scale);
+      });
+      V_ROADS.forEach((vr) => {
+        miniCtx.fillRect((vr.x - vr.halfWidth) * scale, 0, vr.halfWidth * 2 * scale, WORLD_HEIGHT * scale);
+      });
+
+      // Buildings
+      miniCtx.fillStyle = '#4a5568';
+      WorldData.buildings.forEach((b) => {
+        miniCtx.fillRect(b.x * scale, b.y * scale, b.w * scale, b.h * scale);
+      });
+
+      // Marked Restricted Zones
+      miniCtx.fillStyle = 'rgba(255, 59, 92, 0.45)';
+      WorldData.restrictedZones.forEach((z) => {
+        miniCtx.fillRect(z.x * scale, z.y * scale, z.w * scale, z.h * scale);
+      });
+
+      // Pedestrians (subtle grey/white dots)
+      miniCtx.fillStyle = 'rgba(220, 230, 255, 0.55)';
+      GameState.pedestrians.forEach((p) => {
+        miniCtx.fillRect(p.x * scale - 1, p.y * scale - 1, 2.5, 2.5);
+      });
+
+      // Shop Markers ($)
+      WorldData.shops.forEach((s) => {
+        miniCtx.fillStyle = s.color;
+        miniCtx.beginPath();
+        miniCtx.arc(s.x * scale, s.y * scale, 4, 0, Math.PI * 2);
+        miniCtx.fill();
+      });
+
+      // Mission Hub Markers (M)
+      WorldData.missionHubs.forEach((h) => {
+        miniCtx.fillStyle = '#ffb703';
+        miniCtx.beginPath();
+        miniCtx.arc(h.x * scale, h.y * scale, 4.5, 0, Math.PI * 2);
+        miniCtx.fill();
+      });
+
+      // Active Mission Objective Marker
+      const m = GameState.activeMission;
+      if (m) {
+        miniCtx.fillStyle = '#ff2e93';
+        if (m.type === 'delivery' || m.type === 'escort') {
+          miniCtx.beginPath();
+          miniCtx.arc(m.target.x * scale, m.target.y * scale, 5.5, 0, Math.PI * 2);
+          miniCtx.fill();
+        } else if (m.type === 'pickup') {
+          if (m.collectedCount < m.items.length) {
+            m.items.forEach((it) => {
+              if (!it.collected) {
+                miniCtx.beginPath();
+                miniCtx.arc(it.x * scale, it.y * scale, 4.5, 0, Math.PI * 2);
+                miniCtx.fill();
+              }
+            });
+          } else {
+            miniCtx.fillStyle = '#22d37a';
+            miniCtx.beginPath();
+            miniCtx.arc(m.finalDrop.x * scale, m.finalDrop.y * scale, 5.5, 0, Math.PI * 2);
+            miniCtx.fill();
+          }
+        }
+      }
+
+      miniCtx.restore();
+
+      // Player Directional Arrow at Center
+      miniCtx.save();
+      miniCtx.translate(mw / 2, mh / 2);
+      miniCtx.rotate(GameState.player.angle);
+      miniCtx.fillStyle = '#00f0ff';
+      miniCtx.beginPath();
+      miniCtx.moveTo(7, 0);
+      miniCtx.lineTo(-5, -4.5);
+      miniCtx.lineTo(-3, 0);
+      miniCtx.lineTo(-5, 4.5);
+      miniCtx.closePath();
+      miniCtx.fill();
+      miniCtx.restore();
+    }
+
+    /**
+     * ========================================================================
+     * 12. HUD, MENUS, SHOP UI, MISSION HUB UI & TOASTS
+     * ========================================================================
+     */
+    let toastTimeout = null;
+    function showToast(msg) {
+      const el = document.getElementById('toastBanner');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => el.classList.remove('show'), 3200);
+    }
+
+    /** Sync all HUD elements (Top-Left, Top-Right, Time Pill) */
+    function updateHUD() {
+      document.getElementById('hudCash').textContent = `$${GameState.save.cash.toLocaleString()}`;
+      document.getElementById('hudCashCap').textContent = `/ $${GameState.save.cashLimit.toLocaleString()} CAP`;
+      document.getElementById('hudRep').textContent = `${GameState.save.reputation} REP`;
+
+      const hpPct = Math.max(0, Math.min(100, (GameState.player.health / GameState.player.maxHealth) * 100));
+      const hpBar = document.getElementById('hudHealthBar');
+      hpBar.style.width = `${hpPct}%`;
+      hpBar.style.background = hpPct < 35 ? '#ff3b5c' : 'linear-gradient(90deg, #22d37a, #00f0ff)';
+
+      // Wanted Stars 0–5
+      const stars = document.querySelectorAll('#hudWantedStars .wanted-star');
+      const w = GameState.save.wantedLevel;
+      stars.forEach((s, idx) => s.classList.toggle('active', idx < w));
+      const wBox = document.getElementById('wantedBox');
+      wBox.classList.toggle('alert', w > 0);
+      const statusEl = document.getElementById('hudWantedStatus');
+      if (w === 0) statusEl.textContent = 'CLEAR';
+      else if (GameState.inRestrictedZone) statusEl.textContent = 'RESTRICTED!';
+      else statusEl.textContent = `COOLING ${Math.ceil(GameState.wantedDecayTimer)}s`;
+
+      // Day-Night Cycle Indicator
+      const light = getLightingState();
+      document.getElementById('hudTimeIcon').textContent = light.icon;
+      document.getElementById('hudTimeLabel').textContent = `${light.phaseName} • ${light.clockStr}`;
+
+      // Top-Right Active Mission Tracker
+      const m = GameState.activeMission;
+      const mName = document.getElementById('hudMissionName');
+      const mTimer = document.getElementById('hudMissionTimer');
+      const mDesc = document.getElementById('hudMissionDesc');
+      const mBar = document.getElementById('hudMissionBar');
+
+      if (m) {
+        mName.textContent = m.title;
+        const secs = Math.max(0, Math.ceil(m.timeLeft));
+        mTimer.textContent = `${secs}s`;
+        mTimer.classList.toggle('urgent', secs <= 15);
+        mDesc.textContent = m.stageLabel;
+        mBar.style.width = `${Math.round(m.progress * 100)}%`;
+      } else {
+        mName.textContent = 'FREE ROAM';
+        mTimer.textContent = '';
+        mTimer.classList.remove('urgent');
+        mDesc.textContent = 'Visit Mission Hubs (M) or Shops ($, +, G) around Vice Horizon City.';
+        mBar.style.width = '0%';
+      }
+    }
+
+    /** Handle SPACE / Mobile INTERACT press */
+    function triggerInteractAction() {
+      const target = GameState.nearbyInteractable;
+      if (!target) {
+        showToast('Move closer to a glowing Shop ($, +, G) or Mission Hub (M) marker.');
+        return;
+      }
+      if (target.kind === 'shop') {
+        openShopModal(target.data);
+      } else if (target.kind === 'hub') {
+        openMissionModal(target.data);
+      }
+    }
+
+    function openShopModal(shop) {
+      clearMovementInputs();
+      GameState.modalOpen = true;
+      document.getElementById('shopModalTitle').textContent = shop.name;
+      renderShopItems(shop);
+      document.getElementById('shopModal').classList.add('open');
+    }
+
+    function renderShopItems(shop) {
+      const statsEl = document.getElementById('shopModalStats');
+      statsEl.textContent = `Cash: $${GameState.save.cash.toLocaleString()} / $${GameState.save.cashLimit.toLocaleString()} | Speed Lv.${GameState.save.speedTier} (${getPlayerSpeed()} px/s) | Wanted: ${GameState.save.wantedLevel}★`;
+
+      const container = document.getElementById('shopListContainer');
+      container.innerHTML = '';
+      const items = SHOP_ITEMS[shop.id] || [];
+
+      items.forEach((item) => {
+        let owned = false;
+        let locked = false;
+        let disabledReason = '';
+
+        if (item.type === 'speed') {
+          if (GameState.save.speedTier >= item.targetTier) {
+            owned = true;
+            disabledReason = 'OWNED';
+          } else if (GameState.save.speedTier < item.reqTier) {
+            locked = true;
+            disabledReason = `Need Lv.${item.reqTier}`;
+          }
+        } else if (item.type === 'wallet') {
+          if (GameState.save.walletTier >= item.targetTier) {
+            owned = true;
+            disabledReason = 'OWNED';
+          } else if (GameState.save.walletTier < item.reqTier) {
+            locked = true;
+            disabledReason = `Need Tier ${item.reqTier}`;
+          }
+        } else if (item.type === 'heal' && GameState.player.health >= 100) {
+          disabledReason = 'FULL HP';
+        } else if ((item.type === 'reduce_wanted' || item.type === 'clear_wanted') && GameState.save.wantedLevel === 0) {
+          disabledReason = 'NO HEAT';
+        }
+
+        const canAfford = GameState.save.cash >= item.cost;
+        const canBuy = !owned && !locked && !disabledReason && canAfford;
+
+        const card = document.createElement('div');
+        card.className = 'list-card';
+        card.innerHTML = `
+          <div class="list-card-info">
+            <h4>${item.name}</h4>
+            <p>${item.desc}</p>
+          </div>
+          <button class="buy-btn" ${canBuy ? '' : 'disabled'}>
+            ${owned ? 'OWNED' : disabledReason || (canAfford ? `BUY $${item.cost}` : `$${item.cost}`)}
+          </button>
+        `;
+
+        card.querySelector('button').addEventListener('click', () => {
+          purchaseShopItem(shop, item);
+        });
+        container.appendChild(card);
+      });
+    }
+
+    function purchaseShopItem(shop, item) {
+      if (GameState.save.cash < item.cost) return;
+      GameState.save.cash -= item.cost;
+
+      if (item.type === 'heal') {
+        GameState.player.health = GameState.player.maxHealth;
+      } else if (item.type === 'speed') {
+        GameState.save.speedTier = item.targetTier;
+      } else if (item.type === 'wallet') {
+        GameState.save.walletTier = item.targetTier;
+        GameState.save.cashLimit = item.newLimit;
+      } else if (item.type === 'reduce_wanted') {
+        GameState.save.wantedLevel = Math.max(0, GameState.save.wantedLevel - 2);
+      } else if (item.type === 'clear_wanted') {
+        GameState.save.wantedLevel = 0;
+      }
+
+      SoundFX.playCash();
+      saveProgress();
+      updateHUD();
+      renderShopItems(shop);
+      showToast(`🛍️ Purchased ${item.name}!`);
+    }
+
+    function openMissionModal(hub) {
+      clearMovementInputs();
+      GameState.modalOpen = true;
+      document.getElementById('missionModalTitle').textContent = hub.name;
+      document.getElementById('missionModalSubtitle').textContent = GameState.activeMission
+        ? `Active Mission in progress: ${GameState.activeMission.title}`
+        : 'Choose a story contract or repeatable street hustle:';
+
+      const container = document.getElementById('missionListContainer');
+      container.innerHTML = '';
+
+      hub.missions.forEach((mId) => {
+        const tpl = MISSION_TEMPLATES[mId];
+        if (!tpl) return;
+        const alreadyDone = tpl.isStory && GameState.save.completedStoryIds.includes(mId);
+        const blockedByActive = Boolean(GameState.activeMission);
+
+        const card = document.createElement('div');
+        card.className = 'list-card';
+        card.innerHTML = `
+          <div class="list-card-info">
+            <h4>
+              <span class="tag-badge ${tpl.isStory ? 'story' : ''}">${tpl.category}</span>
+              ${alreadyDone ? '<span class="tag-badge done">COMPLETED</span>' : ''}
+              ${tpl.title}
+            </h4>
+            <p>${tpl.desc}</p>
+            <p style="margin-top:4px;color:#22d37a;font-weight:700;">
+              Reward: $${tpl.rewardCash} &nbsp;|&nbsp; +${tpl.rewardRep} REP &nbsp;|&nbsp; Timer: ${tpl.timeLimit}s
+            </p>
+          </div>
+          <button class="buy-btn" ${alreadyDone || blockedByActive ? 'disabled' : ''}>
+            ${alreadyDone ? 'DONE' : blockedByActive ? 'BUSY' : 'ACCEPT'}
+          </button>
+        `;
+
+        card.querySelector('button').addEventListener('click', () => startMission(mId));
+        container.appendChild(card);
+      });
+
+      if (GameState.activeMission) {
+        const abortBtn = document.createElement('button');
+        abortBtn.className = 'btn-danger';
+        abortBtn.textContent = `Abandon Current Mission (${GameState.activeMission.title})`;
+        abortBtn.addEventListener('click', () => {
+          GameState.activeMission = null;
+          GameState.escortNpc = null;
+          updateHUD();
+          openMissionModal(hub);
+          showToast('Mission abandoned.');
+        });
+        container.appendChild(abortBtn);
+      }
+
+      document.getElementById('missionModal').classList.add('open');
+    }
+
+    function showResultModal(title, htmlBody, isFail = false) {
+      clearMovementInputs();
+      GameState.modalOpen = true;
+      const titleEl = document.getElementById('resultTitle');
+      titleEl.textContent = title;
+      titleEl.style.background = isFail
+        ? 'linear-gradient(90deg, #ff3b5c, #ff8fa3)'
+        : 'linear-gradient(90deg, #ffb703, #22d37a)';
+      titleEl.style.webkitBackgroundClip = 'text';
+      titleEl.style.webkitTextFillColor = 'transparent';
+      document.getElementById('resultBody').innerHTML = htmlBody;
+      document.getElementById('resultModal').classList.add('open');
+    }
+
+    function closeAllModals() {
+      document.getElementById('shopModal').classList.remove('open');
+      document.getElementById('missionModal').classList.remove('open');
+      document.getElementById('resultModal').classList.remove('open');
+      document.getElementById('pauseMenu').classList.remove('open');
+      GameState.modalOpen = false;
+      GameState.paused = false;
+    }
+
+    function togglePauseMenu() {
+      if (!GameState.running) return;
+      clearMovementInputs();
+      const pauseEl = document.getElementById('pauseMenu');
+      const willOpen = !pauseEl.classList.contains('open');
+      closeAllModals();
+      if (willOpen) {
+        GameState.paused = true;
+        GameState.modalOpen = true;
+        document.getElementById('pauseStatsBox').innerHTML = `
+          <span>Cash: <strong>$${GameState.save.cash.toLocaleString()} / $${GameState.save.cashLimit.toLocaleString()}</strong></span>
+          <span>Rep: <strong>${GameState.save.reputation}</strong></span>
+          <span>Speed: <strong>Lv.${GameState.save.speedTier}</strong></span>
+          <span>Missions: <strong>${GameState.save.missionsCompletedCount}</strong></span>
+        `;
+        pauseEl.classList.add('open');
+      }
+    }
+
+    /**
+     * ========================================================================
+     * 13. AVATAR CUSTOMIZER & START MENU SETUP
+     * ========================================================================
+     */
+    const previewCanvas = document.getElementById('avatarPreviewCanvas');
+    const previewCtx = previewCanvas.getContext('2d');
+    let previewAngle = -Math.PI / 2;
+
+    function renderAvatarPreview() {
+      previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+      const av = GameState.save.avatar;
+      previewCtx.save();
+      previewCtx.translate(60, 60);
+      previewCtx.scale(2.8, 2.8);
+      drawCharacter25D(previewCtx, 0, 0, previewAngle, GameState.timeElapsed * 4, {
+        outfitColor: av.outfitColor,
+        skinTone: av.skinTone,
+        hairColor: av.hairColor,
+        hairStyle: HAIR_STYLES[av.hairStyleIdx],
+        accessory: ACCESSORIES[av.accessoryIdx]
+      });
+      previewCtx.restore();
+    }
+
+    function buildAvatarCustomizerUI() {
+      const makeSwatches = (containerId, colors, currentKey) => {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        colors.forEach((col) => {
+          const btn = document.createElement('button');
+          btn.className = 'swatch-btn' + (GameState.save.avatar[currentKey] === col ? ' selected' : '');
+          btn.style.background = col;
+          btn.addEventListener('click', () => {
+            GameState.save.avatar[currentKey] = col;
+            makeSwatches(containerId, colors, currentKey);
+            saveProgress();
+          });
+          container.appendChild(btn);
+        });
+      };
+
+      const syncLabels = () => {
+        document.getElementById('btnCycleHairStyle').textContent =
+          `${HAIR_STYLES[GameState.save.avatar.hairStyleIdx]} ↻`;
+        document.getElementById('btnCycleAccessory').textContent =
+          `${ACCESSORIES[GameState.save.avatar.accessoryIdx]} ↻`;
+      };
+
+      makeSwatches('outfitSwatches', OUTFIT_COLORS, 'outfitColor');
+      makeSwatches('skinSwatches', SKIN_TONES, 'skinTone');
+      makeSwatches('hairSwatches', HAIR_COLORS, 'hairColor');
+      syncLabels();
+
+      document.getElementById('btnCycleHairStyle').addEventListener('click', () => {
+        GameState.save.avatar.hairStyleIdx = (GameState.save.avatar.hairStyleIdx + 1) % HAIR_STYLES.length;
+        syncLabels();
+        saveProgress();
+      });
+
+      document.getElementById('btnCycleAccessory').addEventListener('click', () => {
+        GameState.save.avatar.accessoryIdx = (GameState.save.avatar.accessoryIdx + 1) % ACCESSORIES.length;
+        syncLabels();
+        saveProgress();
+      });
+    }
+
+    function updateStartMenuSummary() {
+      document.getElementById('saveSumCash').textContent = `$${GameState.save.cash.toLocaleString()}`;
+      document.getElementById('saveSumMissions').textContent = GameState.save.missionsCompletedCount;
+      document.getElementById('saveSumWanted').textContent = `${GameState.save.wantedLevel}★`;
+    }
+
+    /**
+     * ========================================================================
+     * 14. MAIN GAME LOOP (60 FPS FIXED DELTA CLAMPED) & BOOTSTRAP
+     * ========================================================================
+     */
+    let lastTimestamp = 0;
+    let autosaveAccumulator = 0;
+
+    function gameLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const rawDt = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+      const dt = Math.min(0.05, Math.max(0.001, rawDt));
+
+      GameState.timeElapsed += dt;
+
+      if (document.getElementById('startMenu').classList.contains('open')) {
+        previewAngle = Math.sin(GameState.timeElapsed * 0.9) * 0.8 - Math.PI / 2;
+        renderAvatarPreview();
+      }
+
+      if (GameState.running && !GameState.paused && !GameState.modalOpen) {
+        // Advance 90-second day-night cycle
+        GameState.save.worldTime = (GameState.save.worldTime + dt) % DAY_NIGHT_CYCLE_SECONDS;
+
+        updatePlayer(dt);
+        updatePedestrians(dt);
+        updateTraffic(dt);
+        updateWantedSystem(dt);
+        updateActiveMission(dt);
+
+        autosaveAccumulator += dt;
+        if (autosaveAccumulator >= 5) {
+          autosaveAccumulator = 0;
+          saveProgress(false);
+        }
+
+        renderGameWorld();
+        renderMinimap();
+        updateHUD();
+      } else if (GameState.running) {
+        // Keep rendering static city backdrop behind pause/shop modals
+        renderGameWorld();
+        renderMinimap();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    /** Wire all UI button events cleanly */
+    function bindMenuButtons() {
+      document.getElementById('btnStartPlay').addEventListener('click', () => {
+        SoundFX.ensureContext();
+        SoundFX.playMissionStart();
+        document.getElementById('startMenu').classList.remove('open');
+        document.getElementById('hudLayer').classList.add('active');
+        GameState.running = true;
+        GameState.paused = false;
+        GameState.modalOpen = false;
+        resolveWorldCollisions(GameState.player);
+        updateHUD();
+        showToast('🌴 Welcome to Vice Horizon City! Visit M Hubs or Shops.');
+      });
+
+      document.getElementById('btnNewCareer').addEventListener('click', () => {
+        resetSavedCareer();
+        buildAvatarCustomizerUI();
+      });
+
+      document.getElementById('btnOpenPause').addEventListener('click', togglePauseMenu);
+      document.getElementById('btnPauseResume').addEventListener('click', closeAllModals);
+      document.getElementById('btnPauseResumeX').addEventListener('click', closeAllModals);
+
+      document.getElementById('btnManualSave').addEventListener('click', () => saveProgress(true));
+
+      document.getElementById('btnBackToTitle').addEventListener('click', () => {
+        closeAllModals();
+        GameState.running = false;
+        document.getElementById('hudLayer').classList.remove('active');
+        updateStartMenuSummary();
+        buildAvatarCustomizerUI();
+        document.getElementById('startMenu').classList.add('open');
+      });
+
+      document.getElementById('btnPauseResetSave').addEventListener('click', () => {
+        resetSavedCareer();
+        closeAllModals();
+      });
+
+      document.getElementById('btnCloseShopModal').addEventListener('click', closeAllModals);
+      document.getElementById('btnCloseMissionModal').addEventListener('click', closeAllModals);
+      document.getElementById('btnResultContinue').addEventListener('click', closeAllModals);
+
+      document.getElementById('mobileInteractBtn').addEventListener('click', triggerInteractAction);
+      document.getElementById('interactPrompt').addEventListener('click', triggerInteractAction);
+
+      document.getElementById('btnToggleTouch').addEventListener('click', () => {
+        const current = document.getElementById('mobileControls').classList.contains('visible');
+        setMobileControlsVisible(!current);
+      });
+
+      document.getElementById('btnMuteAudio').addEventListener('click', (e) => {
+        SoundFX.muted = !SoundFX.muted;
+        e.target.textContent = SoundFX.muted ? '🔇 Muted' : '🔊 SFX';
+      });
+
+      window.addEventListener('beforeunload', () => saveProgress(false));
+    }
+
+    /** Initialize entire game on page load with simulated smooth loading bar */
+    function initViceHorizon() {
+      resizeGameCanvas();
+      window.addEventListener('resize', resizeGameCanvas);
+
+      buildViceHorizonWorld();
+      loadProgress();
+      resolveWorldCollisions(GameState.player);
+      GameState.camera.x = GameState.player.x;
+      GameState.camera.y = GameState.player.y;
+
+      initializeTrafficAndNPCs();
+      setupInputListeners();
+      bindMenuButtons();
+      buildAvatarCustomizerUI();
+      updateStartMenuSummary();
+      updateHUD();
+
+      // Loading bar sequence
+      const bar = document.getElementById('loadingBarFill');
+      const tip = document.getElementById('loadingTip');
+      const steps = [
+        { pct: 35, msg: 'Paving Vice Expressway & Neon Nightlife District...' },
+        { pct: 70, msg: 'Spawning AI Sidewalk Pedestrians & City Traffic...' },
+        { pct: 100, msg: 'Loading Saved Progress & Day-Night Lighting Engine...' }
+      ];
+
+      steps.forEach((step, idx) => {
+        setTimeout(() => {
+          bar.style.width = `${step.pct}%`;
+          tip.textContent = step.msg;
+        }, (idx + 1) * 260);
+      });
+
+      setTimeout(() => {
+        document.getElementById('loadingScreen').classList.add('hidden');
+        document.getElementById('startMenu').classList.add('open');
+        renderGameWorld();
+      }, 1050);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    initViceHorizon();
+  </script>
+</body>
+</html>
+```
