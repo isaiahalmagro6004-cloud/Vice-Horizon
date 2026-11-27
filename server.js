@@ -1,10 +1,5 @@
-* ============================================================================
- * VICE HORIZON — Express Static Web Server (Render.com Ready)
- * ============================================================================
- * Serves the self-contained Vice Horizon HTML5 Canvas game (`index.html`),
- * enables Cross-Origin Resource Sharing (CORS), and dynamically binds to
- * `process.env.PORT` without any hardcoded port numbers or secrets.
- */
+// VICE HORIZON — Express Static Web Server (Render.com Ready)
+// Serves index.html, enables CORS, and binds dynamically to process.env.PORT.
 
 import express from 'express';
 import cors from 'cors';
@@ -15,22 +10,15 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize the Express application
 const app = express();
 
-// Enable CORS for cross-origin compatibility
+// Enable CORS
 app.use(cors());
-
-// Disable x-powered-by header for cleaner HTTP responses
 app.disable('x-powered-by');
 
-// Path to the single-file client game
 const INDEX_HTML_PATH = path.join(__dirname, 'index.html');
 
-/**
- * Health check endpoint used by hosting platforms (such as Render) to verify
- * that the Node.js process is alive and responsive.
- */
+// Health check endpoint for Render
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
@@ -39,9 +27,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-/**
- * Serve the main Vice Horizon game file at the root route and /index.html.
- */
+// Serve the Vice Horizon HTML5 game client
 function serveGameClient(req, res) {
   res.sendFile(INDEX_HTML_PATH, (err) => {
     if (err) {
@@ -55,17 +41,9 @@ function serveGameClient(req, res) {
 
 app.get('/', serveGameClient);
 app.get('/index.html', serveGameClient);
-
-/**
- * Fallback route so direct navigation to subpaths still loads the game client
- * cleanly rather than exposing server source files.
- */
 app.get('*', serveGameClient);
 
-/**
- * Callback executed once the HTTP server successfully binds to a port.
- * Uses the active socket address to confirm the assigned port in logs.
- */
+// Startup confirmation log
 function onServerReady() {
   const address = server.address();
   const activePort =
@@ -79,20 +57,13 @@ function onServerReady() {
   console.log('============================================================');
 }
 
-/**
- * Read port exclusively from environment configuration (process.env.PORT).
- * If process.env.PORT is provided (as on Render.com), bind 0.0.0.0 on that port.
- * Otherwise, let Node select an available OS-assigned ephemeral port without
- * hardcoding any fixed fallback port.
- */
+// Listen dynamically to process.env.PORT (no hardcoded port)
 const envPort = process.env.PORT;
 const server = envPort
   ? app.listen(envPort, '0.0.0.0', onServerReady)
   : app.listen(onServerReady);
 
-/**
- * Graceful shutdown handlers for Render / container lifecycle signals.
- */
+// Graceful shutdown handlers
 function shutdown(signal) {
   console.log(`[VICE HORIZON] Received ${signal}. Shutting down gracefully...`);
   server.close(() => {
@@ -103,4 +74,3 @@ function shutdown(signal) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
-```
