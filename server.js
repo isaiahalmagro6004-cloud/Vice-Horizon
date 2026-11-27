@@ -1,7 +1,4 @@
-=== server.js ===
-```javascript
-/**
- * ============================================================================
+* ============================================================================
  * VICE HORIZON — Express Static Web Server (Render.com Ready)
  * ============================================================================
  * Serves the self-contained Vice Horizon HTML5 Canvas game (`index.html`),
