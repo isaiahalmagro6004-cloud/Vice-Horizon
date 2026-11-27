@@ -1,0 +1,26 @@
+=== package.json ===
+```json
+{
+  "name": "vice-horizon",
+  "version": "1.0.0",
+  "description": "Vice Horizon — A browser-based open-world crime simulation web game inspired by GTA 6 and Vice City, featuring a dynamic 90-second day-night cycle, AI traffic and pedestrians, missions, upgrades, wanted system, and mobile/desktop support.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "keywords": [
+    "vice-horizon",
+    "open-world",
+    "html5-canvas",
+    "gta-inspired",
+    "web-game",
+    "express"
+  ],
+  "license": "MIT"
+}
+```
